@@ -2,7 +2,8 @@
 
 Morihome ERP 前端，React + TypeScript + Vite + Ant Design 5/6，全套 UI 跟 `src/theme.ts` 嘅設計系統。
 
-畫面：**我的跟進**（主入口）、**訂單**（舒適模式）、**產品** 同 **庫存**（密集模式）。
+畫面：**登入**、**我的跟進**（主入口）、**訂單**、**產品**、**庫存**。
+全部預設舒適模式（密集嘅 13px 字太細，Dickson 2026-09-22 決定）；右上角可以切密集。
 
 設計 spec 喺 `docs/design/erp-redesign-spec.md`，工作守則喺 `CLAUDE.md` ——
 做 feature 之前先讀相關章節。
@@ -29,8 +30,8 @@ const theme = useMoriTheme();   // 舒適模式；手機自動覆寫成 48px 觸
 <ConfigProvider theme={theme} locale={zhHK}>…</ConfigProvider>
 ```
 
-- 訂單 / 客戶 / 採購 / 送貨 → `useMoriTheme()`（舒適）
-- 產品 / 庫存 / 上架 backlog → `useMoriTheme(true)`（密集）
+- 而家全部畫面預設 `useMoriTheme()`（舒適）；`App.tsx` 嘅 `DENSE_BY_DEFAULT` 係空
+- theme.ts 原本建議產品 / 庫存用密集，但實際字太細，先擱置；要用返就將 key 加返入去
 - 768px 以下一律強制舒適，`dense` 會被忽略
 
 密度喺 `App.tsx` 揀：`DENSE_BY_DEFAULT` 列住邊幾頁預設密集，撳左上角
@@ -42,6 +43,8 @@ const theme = useMoriTheme();   // 舒適模式；手機自動覆寫成 48px 觸
 ```
 src/
   theme.ts                    設計系統（唯一改顏色尺寸嘅地方）
+  auth/                       登入狀態、角色權限 map、mock auth API + 測試
+  pages/auth/                 登入 / 唔記得密碼 / 設定新密碼
   i18n/                       string key（zh-Hant base + zh-Hans）+ per-user 語言
   domain/types.ts             Location / PackageUnit / StockMove / Activity（spec §2.4、§2.5）
   domain/derive.ts            推導規則（spec §4），無 setter
@@ -63,6 +66,24 @@ src/
   utils/useTableHeight.ts     表格高度跟視窗走
   App.tsx                     ConfigProvider + Layout + 導覽
 ```
+
+## 登入
+
+冇登入就淨係見到登入頁；登入後 nav 按角色過濾（spec §6 六個角色，`src/auth/permissions.ts`
+預設拒絕）。司機登入得見「送貨」。
+
+- 電郵 + 密碼；「保持登入 30 日」（唔剔就關 tab 即登出）—— 對應痛點「後台每日要重新認證」
+- Google 帳號登入（示範用模擬帳號選擇器；真 SSO 要等公司 Google Workspace 開咗先做到 domain 限制）
+- 唔記得密碼 → 寄重設連結（30 分鐘有效）→ 設定新密碼
+- 管理員開嘅帳號用臨時密碼，首次登入強制改密碼
+- 錯誤全部統一「電郵或密碼唔啱」，唔會透露邊個電郵存在；錯 5 次鎖 15 分鐘；已停用帳號登入即攔
+- 唔設自行註冊；角色永遠喺伺服器決定
+- 登入嗰刻套用該用戶嘅語言（雯雯係簡體）
+- 示範帳號喺登入頁底部可以摺開，密碼一律 `morihome2026`；`LoginPage.tsx` 嘅
+  `SHOW_DEMO_ACCOUNTS` 改做 false 就冇
+
+`src/auth/mockAuthService.ts` 係後台 API 嘅替身，每個 function 對應一個 endpoint，
+16 個測試覆蓋鎖定、停用、重設連結過期、首次登入改密碼。
 
 ## 我的跟進（spec §6）
 
@@ -125,6 +146,8 @@ src/
   冇 dark 算法或 dark 色值。要 Ocean 定咗暗色調色板先做得，唔應該由 code 自己作。
 - **舊三個畫面未行 string key**：訂單／產品／庫存仲係 hardcode 中文，
   違反 CLAUDE.md 嘅 i18n 規則，要補遷。
+- **登入未接後台**：session 係 mock token 放喺 storage；真 API 要簽 JWT、
+  server 端鎖定、重設連結經電郵。Google SSO 要等 Workspace tenant。
 - 未決假設（CLAUDE.md 要求寫低）：
   - 「打唔通」之後幾時再跟 —— spec 冇寫，暫定 +1 日
     （`UNREACHABLE_RETRY_DAYS`，有 TODO）

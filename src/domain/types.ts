@@ -13,7 +13,11 @@
 
 /* ---------------------------------------------------------------- locations */
 
-/** Seed locations, §2.4. */
+/**
+ * Seed locations, §2.4.
+ * TODO(Q1): the spec leaves open whether 觀塘倉 and 觀塘倉庫 17 室 are two
+ * locations. One hkWarehouse is the simplest assumption until Alex answers.
+ */
 export type LocationKey =
   | 'supplier'
   | 'cnWarehouse'

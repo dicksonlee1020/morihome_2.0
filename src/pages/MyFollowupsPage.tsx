@@ -40,6 +40,7 @@ import type {
 } from '../domain/types';
 import { colors, useIsMobile } from '../theme';
 import { useT } from '../i18n';
+import { useAuth } from '../auth';
 import type { MessageKey, Translate } from '../i18n';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
@@ -106,12 +107,18 @@ export function MyFollowupsPage() {
   const { message } = App.useApp();
   const isMobile = useIsMobile();
   const t = useT();
+  const { user } = useAuth();
   const tableHeight = useTableHeight(430);
   const { wc } = useDensity();
 
   const [rows, setRows] = useState<FollowupRow[]>(followupRows);
   const [bucket, setBucket] = useState<Bucket>('overdue');
-  const [owner, setOwner] = useState<string>('all');
+  // "My" follow-ups: open on the signed-in person's list when they own any.
+  const [owner, setOwner] = useState<string>(() =>
+    user && (OWNERS as readonly string[]).includes(user.displayName)
+      ? user.displayName
+      : 'all'
+  );
   const [keyword, setKeyword] = useState('');
   const [selected, setSelected] = useState<React.Key[]>([]);
 
