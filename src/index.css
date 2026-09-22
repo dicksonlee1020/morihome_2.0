@@ -1,0 +1,23 @@
+/* 全部顏色、字體、尺寸都由 src/theme.ts 出。
+   呢度淨係擺 antd 管唔到嘅少少全域嘢。 */
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap');
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+/* 表格橫向 scroll 條喺 Mac 上面預設睇唔到，畀返啲提示 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbcbcb;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
