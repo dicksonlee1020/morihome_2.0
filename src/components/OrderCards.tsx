@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Divider, Flex, List, Typography } from 'antd';
+import { Button, Card, Divider, Flex, Typography } from 'antd';
 import { DownOutlined, RightOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { CHANNEL_META, PAYMENT_META, STATUS_META } from '../data/orders';
@@ -7,6 +7,7 @@ import { colors } from '../theme';
 import { orderQty, orderTotal } from '../types';
 import type { Order } from '../types';
 import { Pill } from './Pill';
+import { CardList } from './CardList';
 
 const { Text } = Typography;
 
@@ -29,22 +30,17 @@ export function OrderCards({ orders, money, isOverdue }: Props) {
     );
 
   return (
-    <List
-      dataSource={orders}
-      split={false}
-      pagination={{
-        pageSize: 8,
-        size: 'small',
-        align: 'center',
-        showTotal: (t, r) => `第 ${r[0]}–${r[1]} 張，共 ${t} 張`,
-      }}
+    <CardList
+      items={orders}
+      rowKey={(o) => o.id}
+      pageSize={8}
+      emptyText="冇符合條件嘅訂單"
       renderItem={(o) => {
         const status = STATUS_META[o.status];
         const payment = PAYMENT_META[o.payment];
         const expanded = open.includes(o.id);
 
         return (
-          <List.Item style={{ padding: '6px 0' }}>
             <Card size="small" style={{ width: '100%' }}>
               <Flex vertical gap={10}>
                 <Flex align="center" justify="space-between" gap={8}>
@@ -127,7 +123,6 @@ export function OrderCards({ orders, money, isOverdue }: Props) {
                 )}
               </Flex>
             </Card>
-          </List.Item>
         );
       }}
     />
