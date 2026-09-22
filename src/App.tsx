@@ -14,12 +14,15 @@ import {
   Typography,
 } from 'antd';
 import zhHK from 'antd/locale/zh_HK';
+import zhCN from 'antd/locale/zh_CN';
 import 'dayjs/locale/zh-hk';
+import 'dayjs/locale/zh-cn';
 import dayjs from 'dayjs';
 import {
   AppstoreOutlined,
   BellOutlined,
   CarOutlined,
+  CheckSquareOutlined,
   ContainerOutlined,
   FileTextOutlined,
   InboxOutlined,
@@ -31,13 +34,15 @@ import { colors, useIsMobile, useMoriTheme } from './theme';
 import { OrdersPage } from './pages/OrdersPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { InventoryPage } from './pages/InventoryPage';
-
-dayjs.locale('zh-hk');
+import { MyFollowupsPage } from './pages/MyFollowupsPage';
+import { LOCALES, LocaleProvider, useLocale } from './i18n';
+import type { MessageKey, Translate } from './i18n';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
 type PageKey =
+  | 'followups'
   | 'orders'
   | 'customers'
   | 'products'
@@ -46,15 +51,22 @@ type PageKey =
   | 'delivery'
   | 'settings';
 
-const navItems: { key: PageKey; icon: React.ReactNode; label: string }[] = [
-  { key: 'orders', icon: <FileTextOutlined />, label: '訂單' },
-  { key: 'customers', icon: <TeamOutlined />, label: '客戶' },
-  { key: 'products', icon: <AppstoreOutlined />, label: '產品' },
-  { key: 'inventory', icon: <InboxOutlined />, label: '庫存' },
-  { key: 'purchasing', icon: <ContainerOutlined />, label: '採購' },
-  { key: 'delivery', icon: <CarOutlined />, label: '送貨' },
-  { key: 'settings', icon: <SettingOutlined />, label: '設定' },
+/**
+ * Spec §6: the main entry is a task screen, not a module menu, so the
+ * follow-up list sits first and is what the app opens on.
+ */
+const navItems: { key: PageKey; icon: React.ReactNode }[] = [
+  { key: 'followups', icon: <CheckSquareOutlined /> },
+  { key: 'orders', icon: <FileTextOutlined /> },
+  { key: 'customers', icon: <TeamOutlined /> },
+  { key: 'products', icon: <AppstoreOutlined /> },
+  { key: 'inventory', icon: <InboxOutlined /> },
+  { key: 'purchasing', icon: <ContainerOutlined /> },
+  { key: 'delivery', icon: <CarOutlined /> },
+  { key: 'settings', icon: <SettingOutlined /> },
 ];
+
+const navLabelKey = (key: PageKey): MessageKey => `nav.${key}` as MessageKey;
 
 /**
  * 邊幾個畫面預設密集 —— 跟 theme.ts 嘅講法：
@@ -62,7 +74,7 @@ const navItems: { key: PageKey; icon: React.ReactNode; label: string }[] = [
  */
 const DENSE_BY_DEFAULT: PageKey[] = ['products', 'inventory'];
 
-function Brand() {
+function Brand({ t }: { t: Translate }) {
   return (
     <Flex align="center" gap={10}>
       <div
@@ -83,7 +95,7 @@ function Brand() {
       <Flex vertical gap={0} style={{ lineHeight: 1.2 }}>
         <Text style={{ fontWeight: 600 }}>mori home</Text>
         <Text type="secondary" style={{ fontSize: 13 }}>
-          ERP
+          {t('app.brandSub')}
         </Text>
       </Flex>
     </Flex>
@@ -93,37 +105,41 @@ function Brand() {
 function Nav({
   page,
   onSelect,
+  t,
 }: {
   page: PageKey;
   onSelect: (key: PageKey) => void;
+  t: Translate;
 }) {
   return (
     <Menu
       mode="inline"
       selectedKeys={[page]}
-      items={navItems}
+      items={navItems.map((item) => ({ ...item, label: t(navLabelKey(item.key)) }))}
       onClick={({ key }) => onSelect(key as PageKey)}
       style={{ borderInlineEnd: 'none', padding: 8 }}
     />
   );
 }
 
-function PageBody({ page }: { page: PageKey }) {
+function PageBody({ page, t }: { page: PageKey; t: Translate }) {
   switch (page) {
+    case 'followups':
+      return <MyFollowupsPage />;
     case 'orders':
       return <OrdersPage />;
     case 'products':
       return <ProductsPage />;
     case 'inventory':
       return <InventoryPage />;
-    default: {
-      const label = navItems.find((n) => n.key === page)?.label ?? page;
+    default:
       return (
         <Flex align="center" justify="center" style={{ minHeight: 400 }}>
-          <Empty description={`${label}畫面未砌`} />
+          <Empty
+            description={t('nav.notBuilt', { name: t(navLabelKey(page)) })}
+          />
         </Flex>
       );
-    }
   }
 }
 
@@ -139,6 +155,7 @@ function Shell({
   onDensity: (dense: boolean) => void;
 }) {
   const isMobile = useIsMobile();
+  const { locale, setLocale, t } = useLocale();
   const [navOpen, setNavOpen] = useState(false);
 
   const go = (key: PageKey) => {
@@ -165,19 +182,27 @@ function Shell({
                 style={{ fontSize: 18, color: colors.textSecondary }}
               />
             )}
-            <Brand />
+            <Brand t={t} />
           </Flex>
           <Flex align="center" gap={16}>
             {/* 手機一律舒適模式，擺個揀唔到嘅掣淨係阻住 */}
+            <Tooltip title={t('app.locale.label')}>
+              <Segmented
+                size="small"
+                value={locale}
+                onChange={(v) => setLocale(v as typeof locale)}
+                options={LOCALES}
+              />
+            </Tooltip>
             {!isMobile && (
-              <Tooltip title="密集模式：同一套顏色組件，收窄間距同字級">
+              <Tooltip title={t('app.density.hint')}>
                 <Segmented
                   size="small"
                   value={dense ? 'dense' : 'comfy'}
                   onChange={(v) => onDensity(v === 'dense')}
                   options={[
-                    { value: 'comfy', label: '舒適' },
-                    { value: 'dense', label: '密集' },
+                    { value: 'comfy', label: t('app.density.comfy') },
+                    { value: 'dense', label: t('app.density.dense') },
                   ]}
                 />
               </Tooltip>
@@ -206,7 +231,7 @@ function Shell({
               height: 'calc(100vh - 56px)',
             }}
           >
-            <Nav page={page} onSelect={go} />
+            <Nav page={page} onSelect={go} t={t} />
           </Sider>
         )}
 
@@ -215,25 +240,26 @@ function Shell({
           placement="left"
           size={240}
           onClose={() => setNavOpen(false)}
-          title={<Brand />}
+          title={<Brand t={t} />}
           styles={{ body: { padding: 0 } }}
         >
-          <Nav page={page} onSelect={go} />
+          <Nav page={page} onSelect={go} t={t} />
         </Drawer>
 
         <Content style={{ padding: isMobile ? 12 : 24 }}>
-          <PageBody page={page} />
+          <PageBody page={page} t={t} />
         </Content>
       </Layout>
     </Layout>
   );
 }
 
-export default function App() {
-  const [page, setPage] = useState<PageKey>('orders');
+function Root() {
+  const { locale } = useLocale();
+  const [page, setPage] = useState<PageKey>('followups');
   const [dense, setDense] = useState(false);
 
-  // 手機會喺 useMoriTheme 入面被覆寫返舒適，呢度唔使理
+  // On a phone useMoriTheme forces comfortable regardless of this flag.
   const theme = useMoriTheme(dense);
 
   const navigate = (key: PageKey) => {
@@ -241,8 +267,12 @@ export default function App() {
     setDense(DENSE_BY_DEFAULT.includes(key));
   };
 
+  // Data is never translated, but antd's own strings and dayjs formats follow
+  // the user's locale.
+  dayjs.locale(locale === 'zh-Hans' ? 'zh-cn' : 'zh-hk');
+
   return (
-    <ConfigProvider theme={theme} locale={zhHK}>
+    <ConfigProvider theme={theme} locale={locale === 'zh-Hans' ? zhCN : zhHK}>
       <AntdApp>
         <Shell
           page={page}
@@ -252,5 +282,13 @@ export default function App() {
         />
       </AntdApp>
     </ConfigProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <LocaleProvider>
+      <Root />
+    </LocaleProvider>
   );
 }

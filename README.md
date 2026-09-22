@@ -2,7 +2,10 @@
 
 Morihome ERP 前端，React + TypeScript + Vite + Ant Design 5/6，全套 UI 跟 `src/theme.ts` 嘅設計系統。
 
-畫面：**訂單**（舒適模式）、**產品** 同 **庫存**（密集模式）。
+畫面：**我的跟進**（主入口）、**訂單**（舒適模式）、**產品** 同 **庫存**（密集模式）。
+
+設計 spec 喺 `docs/design/erp-redesign-spec.md`，工作守則喺 `CLAUDE.md` ——
+做 feature 之前先讀相關章節。
 
 ## 行起佢
 
@@ -39,6 +42,12 @@ const theme = useMoriTheme();   // 舒適模式；手機自動覆寫成 48px 觸
 ```
 src/
   theme.ts                    設計系統（唯一改顏色尺寸嘅地方）
+  i18n/                       string key（zh-Hant base + zh-Hans）+ per-user 語言
+  domain/types.ts             Location / PackageUnit / StockMove / Activity（spec §2.4、§2.5）
+  domain/derive.ts            推導規則（spec §4），無 setter
+  domain/derive.test.ts       22 個測試
+  data/followups.ts           跟進 fixture（化名 + 地區，冇真實客戶資料）
+  pages/MyFollowupsPage.tsx   我的跟進（spec §6）
   types.ts                    Order / Product / Stock 型別同計算
   data/orders.ts              示範訂單 + 狀態→顏色對照表
   data/catalog.ts             5,241 個 SKU 生成器（固定 seed）
@@ -54,6 +63,26 @@ src/
   utils/useTableHeight.ts     表格高度跟視窗走
   App.tsx                     ConfigProvider + Layout + 導覽
 ```
+
+## 我的跟進（spec §6）
+
+採購／物流嘅任務畫面，亦係 app 嘅預設入口（spec §6：主入口係任務畫面，唔係模組選單）。
+
+- 分頁：逾期 / 今日 / 本週 / 之後 / 已完成 / 全部，數字即時跟住郁
+- 行內三個動作，全部唔跳頁：
+  - **已約** —— popover 揀日期＋時段（上午/下午/晚上/彈性），寫入
+    `DeliveryOrder.scheduledDate`，跟住收檔張 Activity
+  - **打唔通** —— 一撳收檔，同時開返下一張 Activity（chain via
+    `nextActivityId`），舊嗰張永遠唔會被改
+  - **客延後** —— 揀客講嘅日期 + 備註，同樣係開新一張
+- 批量順延一日
+- 「在港 N 日」跌穿 escalation 門檻（預設 14 日，spec §4）會標紅
+- 124 行 fixture，虛擬捲動，對住「一頁載 100+ 行唔卡」嗰條驗收
+- 手機轉卡片，三個動作變 48px 觸控掣，popover 改做 modal
+
+推導邏輯全部喺 `src/domain/derive.ts`，冇 setter（invariant 2），有 22 個測試
+（`npm test`）覆蓋 §4 每條規則，包括「三件齊晒先約得客」——
+一件已送到客人、一件仲喺過境，條 line 仍然讀作「在途」。
 
 ## 訂單（舒適模式）
 
@@ -86,6 +115,21 @@ src/
 - 欄闊跟密度走（`useDensity()` 嘅 `w()`）—— 唔咁做嘅話舒適模式啲欄頭會直行
 - 表格入面唔用 Button 做連結：`controlHeight` 會撐高每一行，密集就白做
 - 狀態藥丸喺表格用短文案（「偏低」），長文案（「低於安全存量」）留畀篩選列同 tooltip
+
+## 未做 / 待對
+
+- **原型未入 repo**：`docs/prototype/morihome-erp-prototype.html` 係 CLAUDE.md
+  指定嘅行為基準，但檔案唔喺度。我的跟進係照 spec §2.4/§3/§4/§6 砌，
+  code 入面有 `TODO(prototype)` 標住要對返。
+- **深淺色**：CLAUDE.md 要求跟系統 + 手動鎖定，但 `theme.ts` 只有淺色 token，
+  冇 dark 算法或 dark 色值。要 Ocean 定咗暗色調色板先做得，唔應該由 code 自己作。
+- **舊三個畫面未行 string key**：訂單／產品／庫存仲係 hardcode 中文，
+  違反 CLAUDE.md 嘅 i18n 規則，要補遷。
+- 未決假設（CLAUDE.md 要求寫低）：
+  - 「打唔通」之後幾時再跟 —— spec 冇寫，暫定 +1 日
+    （`UNREACHABLE_RETRY_DAYS`，有 TODO）
+  - `Activity.kind` 清單 spec 冇列舉，暫用四個（約送貨/確認到貨/追供應商/追尾數）
+  - escalation 門檻 14 日寫死喺 `derive.ts`，spec 講明係設定值，等設定表
 
 ## 未接嘅嘢
 
