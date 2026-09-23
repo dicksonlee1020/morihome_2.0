@@ -107,7 +107,6 @@ export const messages = {
     'role.merchandising': '上架美術',
 
     'auth.brand.name': '森の家 Morihome',
-    'auth.brand.tagline': '實木傢俬 · 床褥 · 訂造',
     'auth.brand.system': '營運系統',
 
     'auth.login.title': '登入',
@@ -272,7 +271,6 @@ export const messages = {
     'role.merchandising': '上架美术',
 
     'auth.brand.name': '森の家 Morihome',
-    'auth.brand.tagline': '实木家具 · 床垫 · 订造',
     'auth.brand.system': '营运系统',
 
     'auth.login.title': '登录',
