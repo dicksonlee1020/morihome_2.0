@@ -12,7 +12,9 @@ export type PageKey =
   | 'customers'
   | 'products'
   | 'inventory'
+  | 'restock'
   | 'purchasing'
+  | 'waiting'
   | 'delivery'
   | 'settings';
 
@@ -22,7 +24,9 @@ export const PAGE_ROLES: Record<PageKey, StaffRole[]> = {
   customers: ['owner', 'sales'],
   products: ['owner', 'procurement', 'merchandising', 'sales'],
   inventory: ['owner', 'procurement', 'merchandising'],
+  restock: ['owner', 'procurement', 'merchandising'],
   purchasing: ['owner', 'procurement'],
+  waiting: ['owner', 'procurement'],
   // §6: a driver sees only their own deliveries for the day.
   delivery: ['owner', 'procurement', 'driver'],
   settings: ['owner'],

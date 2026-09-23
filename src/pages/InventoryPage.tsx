@@ -4,281 +4,185 @@ import {
   Button,
   Card,
   Col,
+  Empty,
   Flex,
-  Form,
   Input,
-  InputNumber,
-  Modal,
   Row,
   Segmented,
   Select,
   Space,
   Statistic,
   Table,
-  Tooltip,
   Typography,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { DownloadOutlined, SearchOutlined, SlidersOutlined } from '@ant-design/icons';
-import { CATEGORY_OPTIONS, products as catalog } from '../data/catalog';
+import { SearchOutlined, SwapOutlined } from '@ant-design/icons';
+import { hkPackages, productOf, useOps } from '../data/ops';
+import type { Pkg } from '../data/ops';
+import { daysSince } from '../domain/clock';
+import { ESCALATION_DAYS_DEFAULT } from '../domain/derive';
+import type { LocationKey } from '../domain/types';
 import { colors, useIsMobile } from '../theme';
-import { amount, money } from '../utils/format';
-import { onHand, sellable, stockState } from '../types';
-import type { Product, StockState } from '../types';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
+import { ItemName, NameDisplaySwitch } from '../components/ItemName';
 import { useTableHeight } from '../utils/useTableHeight';
 import { useT } from '../i18n';
 import type { MessageKey } from '../i18n';
 import { useDensity } from '../utils/useDensity';
-import type { Tone } from '../utils/tones';
 
 const { Text, Title } = Typography;
 
 /**
- * label 係表格入面用嘅短文案 —— 密集模式一欄得 96px，
- * 「低於安全存量」六個字入唔到，會被右邊固定欄切走。
- * 長文案留畀篩選列同 tooltip。
+ * 庫存 = 而家喺香港嘅包件（Ocean feedback B-05：貨到咗就係庫存，見貨賣貨）。
+ * 「實有 / 預留 / 可售 / 安全存量」呢套只留畀儲定貨款，搬咗去備貨表。
+ * 位置係唯一真相（INVARIANT 1）；呢頁冇任何改狀態嘅掣，調撥都係開 move。
  */
-const STOCK_META: Record<
-  StockState,
-  { labelKey: MessageKey; longKey: MessageKey; tone: Tone }
-> = {
-  out: { labelKey: 'inventory.state.out', longKey: 'inventory.state.out', tone: 'error' },
-  low: { labelKey: 'inventory.state.lowShort', longKey: 'inventory.state.low', tone: 'warning' },
-  ok: { labelKey: 'inventory.state.ok', longKey: 'inventory.state.ok', tone: 'success' },
+const LOC_LABEL: Partial<Record<LocationKey, MessageKey>> = {
+  hkWarehouse: 'inventory.loc.hkWarehouse',
+  showroom: 'inventory.loc.showroom',
 };
 
-const ADJUST_REASONS: MessageKey[] = [
-  'inventory.reason.recount',
-  'inventory.reason.damaged',
-  'inventory.reason.returned',
-  'inventory.reason.transferShop',
-  'inventory.reason.supplierRestock',
-];
+type LocFilter = 'all' | 'hkWarehouse' | 'showroom';
+type KindFilter = 'all' | 'order' | 'stock';
 
-type StateFilter = StockState | 'all';
-
-/** 建議補到安全存量嘅兩倍，減埋已經喺路上嘅數 */
-const suggestRestock = (p: Product) => {
-  // 夠貨就唔好嘈。只有跌穿安全存量先至建議補。
-  if (stockState(p.stock) === 'ok') return 0;
-  const target = p.stock.safetyStock * 2;
-  return Math.max(0, target - sellable(p.stock) - p.stock.inTransit);
-};
-
-export function InventoryPage() {
+export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void }) {
   const { message } = App.useApp();
-  const isMobile = useIsMobile();
   const t = useT();
+  const isMobile = useIsMobile();
+  const { wc } = useDensity();
   const tableHeight = useTableHeight(470);
-  const { w } = useDensity();
+  const ops = useOps();
 
-  /** sku → 新嘅葵涌倉在倉數。淨係記改動過嘅，唔使抄成 5,241 件落 state。 */
-  const [adjusted, setAdjusted] = useState<Record<string, number>>({});
-  const [state, setState] = useState<StateFilter>('all');
-  const [category, setCategory] = useState<string | undefined>();
+  const [loc, setLoc] = useState<LocFilter>('all');
+  const [kind, setKind] = useState<KindFilter>('all');
   const [keyword, setKeyword] = useState('');
   const [selected, setSelected] = useState<React.Key[]>([]);
-  const [editing, setEditing] = useState<Product | null>(null);
 
-  const items = useMemo(
-    () =>
-      catalog.map((p) =>
-        adjusted[p.sku] === undefined
-          ? p
-          : { ...p, stock: { ...p.stock, main: adjusted[p.sku] } }
-      ),
-    [adjusted]
-  );
+  const all = useMemo(() => hkPackages(ops), [ops]);
 
   const rows = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-    return items.filter((p) => {
-      if (state !== 'all' && stockState(p.stock) !== state) return false;
-      if (category && p.category !== category) return false;
-      if (!kw) return true;
-      return (
-        p.sku.toLowerCase().includes(kw) || p.name.toLowerCase().includes(kw)
-      );
-    });
-  }, [items, state, category, keyword]);
+    return all
+      .filter((k) => {
+        if (loc !== 'all' && k.location !== loc) return false;
+        if (kind === 'order' && !k.orderNo) return false;
+        if (kind === 'stock' && k.orderNo) return false;
+        if (!kw) return true;
+        const p = productOf(k.sku);
+        return (
+          k.packageCode.toLowerCase().includes(kw) ||
+          k.sku.toLowerCase().includes(kw) ||
+          (k.orderNo?.toLowerCase().includes(kw) ?? false) ||
+          (k.customer?.alias.includes(kw) ?? false) ||
+          (p?.name.toLowerCase().includes(kw) ?? false) ||
+          (p?.supplierName.toLowerCase().includes(kw) ?? false)
+        );
+      })
+      .sort((a, b) => {
+        // 客單先、再按到港日（耐嗰啲排前）
+        if (!!a.orderNo !== !!b.orderNo) return a.orderNo ? -1 : 1;
+        return (a.arrivedAt ?? '').localeCompare(b.arrivedAt ?? '');
+      });
+  }, [all, loc, kind, keyword]);
 
   const stats = useMemo(() => {
-    let out = 0;
-    let low = 0;
-    let inTransit = 0;
-    let value = 0;
-    for (const p of items) {
-      const s = stockState(p.stock);
-      if (s === 'out') out++;
-      if (s === 'low') low++;
-      if (p.stock.inTransit > 0) inTransit++;
-      value += onHand(p.stock) * p.cost;
+    const orders = new Set<string>();
+    const escalatedOrders = new Set<string>();
+    let stock = 0;
+    for (const k of all) {
+      if (k.orderNo) {
+        orders.add(k.orderNo);
+        if ((daysSince(k.arrivedAt) ?? 0) >= ESCALATION_DAYS_DEFAULT) escalatedOrders.add(k.orderNo);
+      } else stock += 1;
     }
-    return { out, low, inTransit, value };
-  }, [items]);
+    return { pkgs: all.length, orders: orders.size, stock, escalated: escalatedOrders.size };
+  }, [all]);
 
-  const numeric = (n: number, tone?: string) => (
-    <Text style={{ color: tone, fontWeight: tone ? 500 : undefined }}>{n}</Text>
-  );
+  const ageCell = (k: Pkg) => {
+    const days = daysSince(k.arrivedAt);
+    const hot = !!k.orderNo && (days ?? 0) >= ESCALATION_DAYS_DEFAULT;
+    return (
+      <Flex vertical>
+        <Text style={{ color: hot ? colors.error : undefined, fontWeight: hot ? 500 : undefined }}>
+          {days == null ? '—' : t('inventory.days', { n: days })}
+          {hot && ` · ${t('inventory.escalated')}`}
+        </Text>
+        <Text type="secondary" style={{ fontSize: 13 }}>{k.arrivedAt}</Text>
+      </Flex>
+    );
+  };
 
-  const columns: TableColumnsType<Product> = [
+  const belongsTo = (k: Pkg) =>
+    k.orderNo ? (
+      <Flex vertical>
+        <Text style={{ fontWeight: 500 }}>{k.orderNo}</Text>
+        <Text type="secondary" style={{ fontSize: 13 }}>{k.customer?.alias} · {k.customer?.district}</Text>
+      </Flex>
+    ) : (
+      <Pill tone="muted">{t('inventory.kind.stock')}</Pill>
+    );
+
+  const columns: TableColumnsType<Pkg> = [
     {
-      title: 'SKU',
-      dataIndex: 'sku',
-      width: w(120),
+      title: t('inventory.col.package'),
+      dataIndex: 'packageCode',
+      width: wc(150),
       fixed: 'left',
-      render: (sku: string) => <Text style={{ fontWeight: 500 }}>{sku}</Text>,
+      render: (c: string) => <Text style={{ fontWeight: 500, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }}>{c}</Text>,
     },
     {
       title: t('inventory.col.item'),
-      dataIndex: 'name',
-      width: w(220),
-      render: (_, p) => (
-        <Flex gap={6} align="baseline">
-          <Text ellipsis>{p.name}</Text>
-          <Text type="secondary" style={{ whiteSpace: 'nowrap' }}>
-            {p.variant}
-          </Text>
-        </Flex>
-      ),
-    },
-    { title: t('common.category'), dataIndex: 'category', width: w(76), responsive: ['lg'] },
-    {
-      title: t('inventory.col.main'),
-      key: 'main',
-      width: w(78),
-      align: 'right',
-      sorter: (a, b) => a.stock.main - b.stock.main,
-      render: (_, p) => numeric(p.stock.main),
-    },
-    {
-      title: t('inventory.col.shop'),
-      key: 'shop',
-      width: w(66),
-      align: 'right',
-      render: (_, p) => numeric(p.stock.shop),
-    },
-    {
-      title: t('inventory.col.reserved'),
-      key: 'reserved',
-      width: w(74),
-      align: 'right',
-      render: (_, p) => (
-        <Text type="secondary">{p.stock.reserved || '—'}</Text>
-      ),
-    },
-    {
-      title: t('inventory.col.sellable'),
-      key: 'sellable',
-      width: w(74),
-      align: 'right',
-      sorter: (a, b) => sellable(a.stock) - sellable(b.stock),
-      render: (_, p) => {
-        const s = stockState(p.stock);
-        return numeric(
-          sellable(p.stock),
-          s === 'out' ? colors.error : s === 'low' ? colors.warningText : undefined
-        );
+      key: 'item',
+      width: wc(320),
+      render: (_, k) => {
+        const p = productOf(k.sku);
+        return p ? <ItemName product={p} thumb /> : <Text>{k.sku}</Text>;
       },
     },
     {
-      title: t('inventory.col.inTransit'),
-      key: 'inTransit',
-      width: w(66),
-      align: 'right',
-      render: (_, p) =>
-        p.stock.inTransit > 0 ? (
-          <Text style={{ color: colors.primary }}>{p.stock.inTransit}</Text>
-        ) : (
-          <Text type="secondary">—</Text>
-        ),
+      title: t('inventory.col.location'),
+      dataIndex: 'location',
+      width: wc(100),
+      render: (l: LocationKey) => <Pill tone={l === 'showroom' ? 'brand' : 'muted'}>{t(LOC_LABEL[l] ?? 'inventory.loc.hkWarehouse')}</Pill>,
+    },
+    { title: t('inventory.col.belongsTo'), key: 'belongsTo', width: wc(170), render: (_, k) => belongsTo(k) },
+    {
+      title: t('inventory.col.inHk'),
+      key: 'age',
+      width: wc(140),
+      sorter: (a, b) => (a.arrivedAt ?? '').localeCompare(b.arrivedAt ?? ''),
+      render: (_, k) => ageCell(k),
     },
     {
-      title: t('inventory.col.safety'),
-      key: 'safety',
-      width: w(82),
-      align: 'right',
-      render: (_, p) => <Text type="secondary">{p.stock.safetyStock}</Text>,
-    },
-    {
-      title: t('inventory.col.restock'),
-      key: 'restock',
-      width: w(88),
-      align: 'right',
-      sorter: (a, b) => suggestRestock(a) - suggestRestock(b),
-      render: (_, p) => {
-        const n = suggestRestock(p);
-        if (n === 0) return <Text type="secondary">—</Text>;
-        return (
-          <Tooltip title={t('inventory.restockHint', { target: p.stock.safetyStock * 2 })}>
-            <Text style={{ fontWeight: 500 }}>{n}</Text>
-          </Tooltip>
-        );
-      },
-    },
-    {
-      title: t('common.status'),
-      key: 'state',
-      width: w(96),
-      render: (_, p) => {
-        const m = STOCK_META[stockState(p.stock)];
-        return (
-          <Tooltip title={m.longKey !== m.labelKey ? t(m.longKey) : undefined}>
-            <span>
-              <Pill tone={m.tone} dot>
-                {t(m.labelKey)}
-              </Pill>
-            </span>
-          </Tooltip>
-        );
-      },
-    },
-    {
-      title: t('inventory.col.countedAt'),
-      key: 'countedAt',
-      width: w(96),
-      responsive: ['xxl'],
-      render: (_, p) => <Text type="secondary">{p.stock.countedAt}</Text>,
-    },
-    {
-      title: '',
-      key: 'action',
-      width: w(64),
-      fixed: 'right',
-      align: 'center',
-      render: (_, p) => (
-        <Tooltip title={t('inventory.adjust')}>
-          <Button
-            type="text"
-            size="small"
-            icon={<SlidersOutlined />}
-            onClick={() => setEditing(p)}
-          />
-        </Tooltip>
-      ),
+      title: t('inventory.col.note'),
+      dataIndex: 'deliveryNoteNo',
+      width: wc(150),
+      responsive: ['xl'],
+      render: (n: string | null) => <Text type="secondary">{n ?? '—'}</Text>,
     },
   ];
 
-  const segmentOptions = [
+  const locOptions = [
     { value: 'all', label: t('common.all') },
-    { value: 'out', label: t('inventory.state.out') },
-    { value: 'low', label: t('inventory.state.low') },
-    { value: 'ok', label: t('inventory.state.ok') },
+    { value: 'hkWarehouse', label: t('inventory.loc.hkWarehouse') },
+    { value: 'showroom', label: t('inventory.loc.showroom') },
+  ];
+  const kindOptions = [
+    { value: 'all', label: t('common.all') },
+    { value: 'order', label: t('inventory.kind.order') },
+    { value: 'stock', label: t('inventory.kind.stock') },
   ];
 
   return (
     <Flex vertical gap={12}>
       <Flex align="center" justify="space-between" wrap gap={12}>
         <Flex vertical gap={2}>
-          <Title level={1} style={{ margin: 0 }}>
-            {t('inventory.title')}
-          </Title>
+          <Title level={1} style={{ margin: 0 }}>{t('inventory.title')}</Title>
           <Text type="secondary">{t('inventory.subtitle')}</Text>
         </Flex>
         <Space>
-          <Button icon={<DownloadOutlined />}>{t('inventory.exportCount')}</Button>
+          <Button onClick={onOpenRestock}>{t('inventory.openRestock')}</Button>
           <Button type="primary" onClick={() => message.info(t('inventory.startCountDemo'))}>
             {t('inventory.startCount')}
           </Button>
@@ -287,27 +191,17 @@ export function InventoryPage() {
 
       <Row gutter={[12, 12]}>
         {[
-          { title: t('inventory.stat.out'), value: stats.out, warn: true },
-          { title: t('inventory.stat.low'), value: stats.low, caution: true },
-          { title: t('inventory.stat.inTransit'), value: stats.inTransit },
-          { title: t('inventory.stat.value'), value: money(stats.value) },
+          { title: t('inventory.stat.packages'), value: stats.pkgs },
+          { title: t('inventory.stat.orders'), value: stats.orders },
+          { title: t('inventory.stat.stock'), value: stats.stock },
+          { title: t('inventory.stat.escalated', { days: ESCALATION_DAYS_DEFAULT }), value: stats.escalated, warn: stats.escalated > 0 },
         ].map((s) => (
           <Col key={s.title} xs={12} lg={6}>
             <Card size="small">
               <Statistic
                 title={s.title}
-                value={typeof s.value === 'number' ? s.value.toLocaleString('en-HK') : s.value}
-                styles={{
-                  content: {
-                    fontSize: 22,
-                    fontWeight: 600,
-                    color: s.warn
-                      ? colors.error
-                      : s.caution
-                        ? colors.warningText
-                        : undefined,
-                  },
-                }}
+                value={s.value.toLocaleString('en-HK')}
+                styles={{ content: { fontSize: 22, fontWeight: 600, color: s.warn ? colors.error : undefined } }}
               />
             </Card>
           </Col>
@@ -318,46 +212,30 @@ export function InventoryPage() {
         styles={{ body: { paddingTop: 12 } }}
         title={
           isMobile ? (
-            <Select
-              value={state}
-              onChange={(v) => setState(v as StateFilter)}
-              options={segmentOptions}
-              style={{ width: '100%' }}
-            />
+            <Select value={loc} onChange={(v) => setLoc(v as LocFilter)} options={locOptions} style={{ width: '100%' }} />
           ) : (
-            <Segmented
-              value={state}
-              onChange={(v) => setState(v as StateFilter)}
-              options={segmentOptions}
-            />
+            <Flex gap={12} wrap>
+              <Segmented value={loc} onChange={(v) => setLoc(v as LocFilter)} options={locOptions} />
+              <Segmented value={kind} onChange={(v) => setKind(v as KindFilter)} options={kindOptions} />
+            </Flex>
           )
         }
-        extra={
-          !isMobile && (
-            <Text type="secondary">
-              {t('common.filteredSku', { n: rows.length.toLocaleString('en-HK') })}
-            </Text>
-          )
-        }
+        extra={!isMobile && <Text type="secondary">{t('inventory.filtered', { n: rows.length.toLocaleString('en-HK') })}</Text>}
       >
         <Flex vertical gap={12}>
-          <Flex gap={8} wrap>
+          <Flex gap={8} wrap align="center">
             <Input
               allowClear
               prefix={<SearchOutlined style={{ color: colors.textMuted }} />}
-              placeholder={t('common.search.sku')}
+              placeholder={t('inventory.search')}
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              style={{ width: isMobile ? '100%' : 240 }}
+              style={{ width: isMobile ? '100%' : 300 }}
             />
-            <Select
-              allowClear
-              placeholder={t('common.category')}
-              value={category}
-              onChange={setCategory}
-              options={CATEGORY_OPTIONS}
-              style={{ width: isMobile ? '100%' : 130 }}
-            />
+            {isMobile && (
+              <Select value={kind} onChange={(v) => setKind(v as KindFilter)} options={kindOptions} style={{ width: '100%' }} />
+            )}
+            <NameDisplaySwitch />
           </Flex>
 
           {selected.length > 0 && (
@@ -366,184 +244,58 @@ export function InventoryPage() {
               justify="space-between"
               wrap
               gap={8}
-              style={{
-                padding: '6px 12px',
-                background: colors.primarySubtle,
-                borderRadius: 6,
-              }}
+              style={{ padding: '6px 12px', background: colors.primarySubtle, borderRadius: 6 }}
             >
-              <Text>{t('common.selectedSku', { n: selected.length })}</Text>
+              <Text>{t('inventory.selected', { n: selected.length })}</Text>
               <Space>
-                <Button
-                  size="small"
-                  onClick={() => message.success(t('inventory.bulk.restocked', { n: selected.length }))}
-                >
-                  {t('inventory.bulk.restock')}
+                <Button size="small" icon={<SwapOutlined />} onClick={() => message.info(t('inventory.bulk.transferDemo', { n: selected.length }))}>
+                  {t('inventory.bulk.transfer')}
                 </Button>
-                <Button size="small" type="text" onClick={() => setSelected([])}>
-                  {t('common.clear')}
+                <Button size="small" onClick={() => message.info(t('inventory.bulk.adjustDemo', { n: selected.length }))}>
+                  {t('inventory.bulk.adjust')}
                 </Button>
+                <Button size="small" type="text" onClick={() => setSelected([])}>{t('common.clear')}</Button>
               </Space>
             </Flex>
           )}
 
           {isMobile ? (
-            <StockCards items={rows} onAdjust={setEditing} />
+            <CardList
+              items={rows}
+              rowKey={(k) => k.id}
+              renderItem={(k) => {
+                const p = productOf(k.sku);
+                return (
+                  <Card size="small" styles={{ body: { padding: '12px 16px' } }}>
+                    <Flex vertical gap={8}>
+                      <Flex justify="space-between" align="center" gap={8}>
+                        <Text style={{ fontWeight: 600, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }}>{k.packageCode}</Text>
+                        <Pill tone={k.location === 'showroom' ? 'brand' : 'muted'}>{t(LOC_LABEL[k.location] ?? 'inventory.loc.hkWarehouse')}</Pill>
+                      </Flex>
+                      {p && <ItemName product={p} thumb />}
+                      <Flex justify="space-between" align="center" gap={8}>
+                        {belongsTo(k)}
+                        {ageCell(k)}
+                      </Flex>
+                    </Flex>
+                  </Card>
+                );
+              }}
+            />
           ) : (
-            <Table<Product>
-              rowKey="sku"
+            <Table<Pkg>
+              rowKey="id"
               columns={columns}
               dataSource={rows}
               virtual
-              scroll={{ x: w(1000), y: tableHeight }}
+              scroll={{ x: wc(1000), y: tableHeight }}
               pagination={false}
-              rowSelection={{
-                selectedRowKeys: selected,
-                onChange: setSelected,
-                // antd 預設 32px，舒適模式 padding 一大就切到個 checkbox
-                columnWidth: w(40),
-              }}
+              rowSelection={{ selectedRowKeys: selected, onChange: setSelected, columnWidth: wc(48) }}
+              locale={{ emptyText: <Empty description={t('common.empty')} /> }}
             />
           )}
         </Flex>
       </Card>
-
-      <AdjustModal
-        product={editing}
-        onClose={() => setEditing(null)}
-        onSave={(sku, qty, reason) => {
-          setAdjusted((prev) => ({ ...prev, [sku]: qty }));
-          setEditing(null);
-          message.success(t('inventory.adjusted', { sku, qty, reason: t(reason as MessageKey) }));
-        }}
-      />
     </Flex>
-  );
-}
-
-function AdjustModal({
-  product,
-  onClose,
-  onSave,
-}: {
-  product: Product | null;
-  onClose: () => void;
-  onSave: (sku: string, qty: number, reason: string) => void;
-}) {
-  const t = useT();
-  const [form] = Form.useForm<{ qty: number; reason: string; note?: string }>();
-
-  return (
-    <Modal
-      title={product ? t('inventory.modal.title', { sku: product.sku }) : t('inventory.adjust')}
-      open={product != null}
-      onCancel={onClose}
-      okText={t('common.save')}
-      cancelText={t('common.cancel')}
-      destroyOnHidden
-      onOk={() =>
-        form.validateFields().then((v) => {
-          if (product) onSave(product.sku, v.qty, v.reason);
-        })
-      }
-    >
-      {product && (
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{ qty: product.stock.main, reason: ADJUST_REASONS[0] }}
-        >
-          <Text type="secondary">
-            {product.name} · {product.variant}
-          </Text>
-          <Flex gap={16} style={{ margin: '12px 0' }}>
-            <Text type="secondary">{t('inventory.modal.shop', { n: product.stock.shop })}</Text>
-            <Text type="secondary">{t('inventory.modal.reserved', { n: product.stock.reserved })}</Text>
-            <Text type="secondary">{t('inventory.modal.inTransit', { n: product.stock.inTransit })}</Text>
-            <Text type="secondary">{t('inventory.modal.safety', { n: product.stock.safetyStock })}</Text>
-          </Flex>
-          <Form.Item
-            name="qty"
-            label={t('inventory.modal.qty')}
-            rules={[{ required: true, message: t('inventory.modal.qtyRequired') }]}
-          >
-            <InputNumber min={0} max={99999} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="reason" label={t('inventory.modal.reason')} rules={[{ required: true }]}>
-            <Select options={ADJUST_REASONS.map((r) => ({ value: r, label: t(r) }))} />
-          </Form.Item>
-          <Form.Item name="note" label={t('inventory.modal.note')}>
-            <Input.TextArea rows={2} placeholder={t('inventory.modal.notePlaceholder')} />
-          </Form.Item>
-        </Form>
-      )}
-    </Modal>
-  );
-}
-
-function StockCards({
-  items,
-  onAdjust,
-}: {
-  items: Product[];
-  onAdjust: (p: Product) => void;
-}) {
-  const t = useT();
-  return (
-    <CardList
-      items={items}
-      rowKey={(p) => p.sku}
-      emptyText={t('common.emptySku')}
-      renderItem={(p) => {
-        const s = stockState(p.stock);
-        const meta = STOCK_META[s];
-        const restock = suggestRestock(p);
-        return (
-            <Card size="small" style={{ width: '100%' }}>
-              <Flex vertical gap={8}>
-                <Flex align="center" justify="space-between" gap={8}>
-                  <Text style={{ fontWeight: 600 }}>{p.sku}</Text>
-                  <Pill tone={meta.tone} dot>
-                    {t(meta.longKey)}
-                  </Pill>
-                </Flex>
-                <Text>
-                  {p.name} · {p.variant}
-                </Text>
-                <Flex gap={16} wrap>
-                  <Text
-                    style={{
-                      fontWeight: 600,
-                      color:
-                        s === 'out'
-                          ? colors.error
-                          : s === 'low'
-                            ? colors.warningText
-                            : undefined,
-                    }}
-                  >
-                    {t('inventory.card.sellable', { n: sellable(p.stock) })}
-                  </Text>
-                  <Text type="secondary">{t('inventory.card.main', { n: p.stock.main })}</Text>
-                  <Text type="secondary">{t('inventory.card.shop', { n: p.stock.shop })}</Text>
-                  <Text type="secondary">{t('inventory.card.reserved', { n: p.stock.reserved })}</Text>
-                  {p.stock.inTransit > 0 && (
-                    <Text style={{ color: colors.primary }}>{t('inventory.card.inTransit', { n: p.stock.inTransit })}</Text>
-                  )}
-                </Flex>
-                <Flex align="center" justify="space-between" gap={8}>
-                  <Text type="secondary">
-                    {t('inventory.card.safety', { n: p.stock.safetyStock })}
-                    {restock > 0 && ` · ${t('inventory.card.restock', { n: amount(restock) })}`}
-                  </Text>
-                  <Button size="small" icon={<SlidersOutlined />} onClick={() => onAdjust(p)}>
-                    {t('inventory.card.adjust')}
-                  </Button>
-                </Flex>
-              </Flex>
-            </Card>
-        );
-      }}
-    />
   );
 }

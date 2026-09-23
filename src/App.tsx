@@ -25,7 +25,9 @@ import {
   CheckSquareOutlined,
   ContainerOutlined,
   FileTextOutlined,
+  HourglassOutlined,
   InboxOutlined,
+  ReconciliationOutlined,
   LogoutOutlined,
   MenuOutlined,
   SettingOutlined,
@@ -35,6 +37,9 @@ import { colors, useIsMobile, useMoriTheme } from './theme';
 import { OrdersPage } from './pages/OrdersPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { InventoryPage } from './pages/InventoryPage';
+import { PurchasingPage } from './pages/PurchasingPage';
+import { WaitingPage } from './pages/WaitingPage';
+import { RestockPage } from './pages/RestockPage';
 import { MyFollowupsPage } from './pages/MyFollowupsPage';
 import { AuthScreens } from './pages/auth/AuthScreens';
 import { LOCALES, LocaleProvider, useLocale } from './i18n';
@@ -56,9 +61,13 @@ const navItems: { key: PageKey; icon: React.ReactNode }[] = [
   { key: 'followups', icon: <CheckSquareOutlined /> },
   { key: 'orders', icon: <FileTextOutlined /> },
   { key: 'customers', icon: <TeamOutlined /> },
-  { key: 'products', icon: <AppstoreOutlined /> },
-  { key: 'inventory', icon: <InboxOutlined /> },
+  // Ocean's flow (2026-09-23): order → purchasing → waiting for the factory →
+  // packages in HK → delivery. The restock sheet sits beside inventory.
   { key: 'purchasing', icon: <ContainerOutlined /> },
+  { key: 'waiting', icon: <HourglassOutlined /> },
+  { key: 'inventory', icon: <InboxOutlined /> },
+  { key: 'restock', icon: <ReconciliationOutlined /> },
+  { key: 'products', icon: <AppstoreOutlined /> },
   { key: 'delivery', icon: <CarOutlined /> },
   { key: 'settings', icon: <SettingOutlined /> },
 ];
@@ -159,7 +168,17 @@ function UserMenu({ user, t }: { user: StaffUser; t: Translate }) {
   );
 }
 
-function PageBody({ page, user, t }: { page: PageKey; user: StaffUser; t: Translate }) {
+function PageBody({
+  page,
+  user,
+  t,
+  onNavigate,
+}: {
+  page: PageKey;
+  user: StaffUser;
+  t: Translate;
+  onNavigate: (key: PageKey) => void;
+}) {
   if (!canOpen(user.role, page)) {
     return (
       <Flex align="center" justify="center" style={{ minHeight: 400 }}>
@@ -175,7 +194,13 @@ function PageBody({ page, user, t }: { page: PageKey; user: StaffUser; t: Transl
     case 'products':
       return <ProductsPage />;
     case 'inventory':
-      return <InventoryPage />;
+      return <InventoryPage onOpenRestock={() => onNavigate('restock')} />;
+    case 'restock':
+      return <RestockPage />;
+    case 'purchasing':
+      return <PurchasingPage />;
+    case 'waiting':
+      return <WaitingPage />;
     default:
       return (
         <Flex align="center" justify="center" style={{ minHeight: 400 }}>
@@ -282,7 +307,7 @@ function Shell({
         </Drawer>
 
         <Content style={{ padding: isMobile ? 12 : 24 }}>
-          <PageBody page={page} user={user} t={t} />
+          <PageBody page={page} user={user} t={t} onNavigate={go} />
         </Content>
       </Layout>
     </Layout>

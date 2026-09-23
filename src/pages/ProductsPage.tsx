@@ -33,12 +33,15 @@ import {
 import { colors, useIsMobile } from '../theme';
 import { amount, money, percent } from '../utils/format';
 import { margin, sellable, stockState } from '../types';
-import type { Product, ProductStatus } from '../types';
+import type { Product, ProductStatus, SourcingType } from '../types';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
+import { ItemName, NameDisplaySwitch } from '../components/ItemName';
 import { useTableHeight } from '../utils/useTableHeight';
 import { useT } from '../i18n';
+import type { MessageKey } from '../i18n';
 import { useDensity } from '../utils/useDensity';
+import type { Tone } from '../utils/tones';
 
 const { Text, Title } = Typography;
 
@@ -46,6 +49,12 @@ type StatusFilter = ProductStatus | 'all';
 
 /** 毛利低過呢個數就標色，叫同事覆下個成本價 */
 const MARGIN_FLOOR = 0.4;
+
+const SOURCING_META: Record<SourcingType, { labelKey: MessageKey; tone: Tone }> = {
+  stocked: { labelKey: 'products.sourcing.stocked', tone: 'brand' },
+  orderOnDemand: { labelKey: 'products.sourcing.orderOnDemand', tone: 'muted' },
+  custom: { labelKey: 'products.sourcing.custom', tone: 'warning' },
+};
 
 export function ProductsPage() {
   const { message } = App.useApp();
@@ -58,7 +67,7 @@ export function ProductsPage() {
   const [category, setCategory] = useState<string | undefined>();
   const [series, setSeries] = useState<string | undefined>();
   const [keyword, setKeyword] = useState('');
-  const [outOnly, setOutOnly] = useState(false);
+  const [stockedOnly, setStockedOnly] = useState(false);
   const [selected, setSelected] = useState<React.Key[]>([]);
 
   const rows = useMemo(() => {
@@ -67,28 +76,31 @@ export function ProductsPage() {
       if (status !== 'all' && p.status !== status) return false;
       if (category && p.category !== category) return false;
       if (series && p.series !== series) return false;
-      if (outOnly && sellable(p.stock) > 0) return false;
+      if (stockedOnly && p.sourcingType !== 'stocked') return false;
       if (!kw) return true;
+      // 兩個名都搜得到（B-07）：出街名、廠家名、廠家型號
       return (
         p.sku.toLowerCase().includes(kw) ||
         p.name.toLowerCase().includes(kw) ||
-        p.variant.toLowerCase().includes(kw)
+        p.variant.toLowerCase().includes(kw) ||
+        p.supplierName.toLowerCase().includes(kw) ||
+        p.supplierCode.toLowerCase().includes(kw)
       );
     });
-  }, [status, category, series, keyword, outOnly]);
+  }, [status, category, series, keyword, stockedOnly]);
 
   const stats = useMemo(() => {
     let active = 0;
     let draft = 0;
-    let out = 0;
+    let stocked = 0;
     let stockValue = 0;
     for (const p of catalog) {
       if (p.status === 'active') active++;
       if (p.status === 'draft') draft++;
-      if (p.status === 'active' && sellable(p.stock) === 0) out++;
+      if (p.sourcingType === 'stocked') stocked++;
       stockValue += (p.stock.main + p.stock.shop) * p.cost;
     }
-    return { active, draft, out, stockValue };
+    return { active, draft, stocked, stockValue };
   }, []);
 
   const columns: TableColumnsType<Product> = [
@@ -107,24 +119,26 @@ export function ProductsPage() {
     {
       title: t('products.col.name'),
       dataIndex: 'name',
-      width: w(230),
-      render: (_, p) => (
-        <Flex gap={6} align="baseline">
-          <Text ellipsis>{p.name}</Text>
-          <Text type="secondary" style={{ whiteSpace: 'nowrap' }}>
-            {p.variant}
-          </Text>
-        </Flex>
-      ),
+      width: w(300),
+      render: (_, p) => <ItemName product={p} thumb />,
     },
     { title: t('common.category'), dataIndex: 'category', width: w(80) },
-    { title: t('products.col.series'), dataIndex: 'series', width: w(80) },
+    { title: t('products.col.series'), dataIndex: 'series', width: w(80), responsive: ['xl'] },
     {
       title: t('products.col.supplier'),
       dataIndex: 'supplier',
       width: w(140),
       responsive: ['xxl'],
       render: (s: string) => <Text type="secondary" ellipsis>{s}</Text>,
+    },
+    {
+      title: t('products.col.sourcing'),
+      dataIndex: 'sourcingType',
+      width: w(90),
+      render: (s: SourcingType) => {
+        const m = SOURCING_META[s];
+        return <Pill tone={m.tone}>{t(m.labelKey)}</Pill>;
+      },
     },
     {
       title: t('products.col.cost'),
@@ -167,6 +181,8 @@ export function ProductsPage() {
       align: 'right',
       sorter: (a, b) => sellable(a.stock) - sellable(b.stock),
       render: (_, p) => {
+        // 只有儲定貨款先有「可售」呢個數；其餘款見貨賣貨（B-05）
+        if (p.sourcingType !== 'stocked') return <Text type="secondary">—</Text>;
         const n = sellable(p.stock);
         const state = stockState(p.stock);
         return (
@@ -227,9 +243,10 @@ export function ProductsPage() {
         style={{ width: isMobile ? '100%' : 120 }}
       />
       <Flex align="center" gap={8}>
-        <Switch checked={outOnly} onChange={setOutOnly} size="small" />
-        <Text type="secondary">{t('products.outOnly')}</Text>
+        <Switch checked={stockedOnly} onChange={setStockedOnly} size="small" />
+        <Text type="secondary">{t('products.stockedOnly')}</Text>
       </Flex>
+      <NameDisplaySwitch />
     </Flex>
   );
 
@@ -257,7 +274,7 @@ export function ProductsPage() {
         {[
           { title: t('products.stat.active'), value: stats.active.toLocaleString('en-HK') },
           { title: t('products.stat.draft'), value: stats.draft.toLocaleString('en-HK') },
-          { title: t('products.stat.activeOut'), value: stats.out.toLocaleString('en-HK'), warn: true },
+          { title: t('products.stat.stocked'), value: stats.stocked.toLocaleString('en-HK') },
           { title: t('products.stat.stockValue'), value: money(stats.stockValue) },
         ].map((s) => (
           <Col key={s.title} xs={12} lg={6}>
@@ -265,13 +282,7 @@ export function ProductsPage() {
               <Statistic
                 title={s.title}
                 value={s.value}
-                styles={{
-                  content: {
-                    fontSize: 22,
-                    fontWeight: 600,
-                    color: s.warn ? colors.error : undefined,
-                  },
-                }}
+                styles={{ content: { fontSize: 22, fontWeight: 600 } }}
               />
             </Card>
           </Col>
@@ -394,30 +405,28 @@ function ProductCards({ products }: { products: Product[] }) {
                     {t(meta.labelKey)}
                   </Pill>
                 </Flex>
-                <Flex vertical gap={2}>
-                  <Text>
-                    {p.name} · {p.variant}
-                  </Text>
-                  <Text type="secondary">
-                    {p.category} · {p.series}
-                  </Text>
-                </Flex>
+                <ItemName product={p} thumb />
+                <Text type="secondary">
+                  {p.category} · {p.series} · {t(SOURCING_META[p.sourcingType].labelKey)}
+                </Text>
                 <Flex align="baseline" justify="space-between" gap={8}>
                   <Text style={{ fontWeight: 600 }}>{money(p.price)}</Text>
-                  <Text
-                    style={{
-                      color:
-                        state === 'out'
-                          ? colors.error
-                          : state === 'low'
-                            ? colors.warningText
-                            : colors.textSecondary,
-                    }}
-                  >
-                    {t('products.card.sellable', { n: sellable(p.stock) })}
-                    {state === 'out' && ` · ${t('products.card.out')}`}
-                    {state === 'low' && ` · ${t('products.card.low')}`}
-                  </Text>
+                  {p.sourcingType === 'stocked' && (
+                    <Text
+                      style={{
+                        color:
+                          state === 'out'
+                            ? colors.error
+                            : state === 'low'
+                              ? colors.warningText
+                              : colors.textSecondary,
+                      }}
+                    >
+                      {t('products.card.sellable', { n: sellable(p.stock) })}
+                      {state === 'out' && ` · ${t('products.card.out')}`}
+                      {state === 'low' && ` · ${t('products.card.low')}`}
+                    </Text>
+                  )}
                 </Flex>
               </Flex>
             </Card>

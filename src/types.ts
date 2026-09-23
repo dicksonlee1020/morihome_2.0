@@ -41,6 +41,13 @@ export const orderQty = (o: Order) =>
 
 export type ProductStatus = 'active' | 'draft' | 'archived';
 
+/**
+ * SPEC REF §2.2 Variant.sourcingType. Ocean (2026-09-23): the shop rarely
+ * holds stock — most lines are ordered against a sale — so only `stocked`
+ * variants carry a safety stock and appear on the restock sheet.
+ */
+export type SourcingType = 'stocked' | 'orderOnDemand' | 'custom';
+
 export interface Stock {
   /** 葵涌倉在倉數 */
   main: number;
@@ -62,6 +69,14 @@ export interface Product {
   categoryKey: string;
   series: string;
   supplier: string;
+  /**
+   * SPEC REF §2.2 SupplierProduct. The factory's own model code and name for
+   * the same item; the internal SKU never changes (INVARIANT 5), these are
+   * attributes. Data, never translated.
+   */
+  supplierCode: string;
+  supplierName: string;
+  sourcingType: SourcingType;
   cost: number;
   price: number;
   status: ProductStatus;

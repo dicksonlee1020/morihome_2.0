@@ -2,7 +2,8 @@
 
 Morihome ERP 前端，React + TypeScript + Vite + Ant Design 5/6，全套 UI 跟 `src/theme.ts` 嘅設計系統。
 
-畫面：**登入**、**我的跟進**（主入口）、**訂單**、**產品**、**庫存**。
+畫面：**登入**、**我的跟進**（主入口）、**訂單**、**採購**、**庫存等候**、**庫存**、**備貨表**、**產品**。
+採購 → 庫存等候 → 庫存 呢條線係照 Ocean 2026-09-23 嘅原型 feedback 改（`docs/backlog.md` B-01 至 B-07）。
 全部預設舒適模式（密集嘅 13px 字太細，Dickson 2026-09-22 決定）；右上角可以切密集。
 
 設計 spec 喺 `docs/design/erp-redesign-spec.md`，工作守則喺 `CLAUDE.md` ——
@@ -53,13 +54,20 @@ src/
   pages/MyFollowupsPage.tsx   我的跟進（spec §6）
   types.ts                    Order / Product / Stock 型別同計算
   data/orders.ts              示範訂單 + 狀態→顏色對照表
-  data/catalog.ts             5,241 個 SKU 生成器（固定 seed）
+  data/catalog.ts             5,241 個 SKU 生成器（固定 seed；每件有廠家型號 + 廠家名 + 來源類型）
+  data/ops.ts                 採購需求 / 採購單 / 包件 / StockMove 嘅示範資料 + store（唯一寫 location 嘅地方係 completeMove）
+  data/ops.test.ts            採購、訂貨確認、發貨表對數嘅測試（7 個）
+  components/ItemName.tsx     雙名顯示（出街名 ↔ 廠商名）+ 縮圖 + 切換掣
+  utils/nameDisplay.ts        per-user 名稱顯示設定（localStorage 頂住）
   components/Pill.tsx         狀態藥丸（顏色只收 theme 傳入）
   components/CardList.tsx     手機版卡片列表 + 分頁
   components/OrderCards.tsx   手機版訂單卡
   pages/OrdersPage.tsx        訂單（舒適）
-  pages/ProductsPage.tsx      產品（密集，虛擬捲動）
-  pages/InventoryPage.tsx     庫存（密集，可調整數量）
+  pages/PurchasingPage.tsx    採購：需求按供應商 group、生成採購表、上載訂貨確認
+  pages/WaitingPage.tsx       庫存等候：按訂單收埋、發貨進度、上載發貨表自動對數
+  pages/InventoryPage.tsx     庫存：在港包件（按位置）
+  pages/RestockPage.tsx       備貨表：只入儲定貨款，三數字 + 補貨提醒
+  pages/ProductsPage.tsx      產品（虛擬捲動，雙名 + 縮圖）
   utils/format.ts             金額 / 百分比格式
   utils/tones.ts              功能色配對
   utils/useDensity.ts         問返 theme 而家係邊個密度
@@ -113,22 +121,46 @@ src/
 - 逾期未送嘅訂單，送貨日期會用 `colors.error` 標紅
 - 桌面用表格；**768px 以下改用卡片列表** —— 390px 闊擺唔落十欄表格，掃到第三欄就已經見唔到金額同狀態
 
-## 產品（密集模式）
+## 採購（Ocean B-01 / B-02）
 
-- 5,241 個 SKU，用 antd Table 嘅 `virtual` 虛擬捲動：實際只 render 十幾行，
-  由撳入去到出到表大約 0.8 秒
-- 統計卡：已上架、草稿、已上架但缺貨、庫存成本值
-- 篩選：狀態分頁、關鍵字、分類、系列、只睇缺貨
-- 毛利低過 40% 會標色，提你覆返個成本價
-- 多選 + 批量上架 / 下架 / 改價
+- 訂單一落，需求自動出現；左邊按供應商 group（每個供應商仲有幾多未採購）
+- 揀需求 → 「生成採購表」：一次揀幾個供應商就每個供應商出一份（draft PurchaseOrder，批次號 0923單）
+- 採購單 tab：「上載訂貨確認」→ 記附件名 + 人手 key 供應商單號（HB…）→ `orderedAt` 有值
+  → 需求狀態推導為「已訂」，同時為每件貨建立包件（位置 = 供應商）
+- 「已訂」冇 setter；自動讀檔（OCR）留後。附件真上傳要行帶 auth 嘅 endpoint
+- 備貨表揀款「生成採購需求」會出 purpose = 存貨嘅需求（訂單欄顯示「存貨」）
 
-## 庫存（密集模式）
+## 庫存等候（Ocean B-03 / B-04）
 
-- 每個 SKU 見到葵涌倉、門市、已預留、可售、在途、安全存量
-- 可售 = 在倉 − 已預留。落單睇嘅係呢個數，唔係在倉數
-- 跌穿安全存量先會出「建議補貨」＝ 安全存量 × 2 − 可售 − 在途
-- 狀態分頁：缺貨 / 偏低 / 正常；撳「調整」可以改在倉數，要揀原因
-  （呢個改動會即時反映落統計卡同篩選，未寫入後台）
+- 已落單、廠未發齊嘅訂單。一行一張訂單，右邊「3 / 5 件已發貨」+ 進度條；撳行先爆開貨品同包件
+- 「上載發貨表」收 CSV（欄名認 包件编码 / 包件編碼 / packageCode 等）；「試用示範發貨表」扮廠家 send 嚟一份，
+  夾埋兩行對唔到嘅（打錯編碼、早已發貨）
+- 對數結果先俾你睇：對到幾件、對唔到幾件同原因；「套用」先寫
+- 套用 = 每張物流單開一張 採購收貨 move（供應商 → 大陸倉）assigned → done。
+  燈自動著係因為包件位置變咗（Invariant 1），唔係改咗狀態值
+
+## 庫存（Ocean B-05）
+
+- 庫存 = 而家喺香港嘅每一件包件：包件編碼、貨品、位置（香港倉 / 陳列室）、屬於邊張客單或者存貨、在港幾多日、物流單號
+- 客單包件在港 ≥ 14 日未約會標紅 + 「已升級」（spec §4 escalation）
+- 冇任何改狀態嘅掣：調撥、盤點調整都係開 move（示範只彈提示）
+- 「實有 / 預留 / 可售 / 安全存量」唔喺呢頁 —— Ocean 話呢套唔啱見貨賣貨嘅做法，搬咗去備貨表
+
+## 備貨表（Ocean B-05）
+
+- 只列儲定貨款（`sourcingType = stocked`，spec §2.2），目前 fixture 佔目錄 2%
+- 實有、預留、可售、在途、安全存量（可以 inline 改）、補貨提醒、建議補貨
+- 補貨提醒係推導：現在補（可售 ≤ 安全存量而在途補唔返）/ 快要補（< 1.5 倍）/ 在途補緊 / 足夠
+  —— TODO：接埋銷售速度同廠期先準
+
+## 產品（Ocean B-07）
+
+- 5,241 個 SKU，antd Table `virtual` 虛擬捲動
+- 每件貨兩個名：出街名（我哋賣嘅）同廠商名（廠家型號 + 發貨表叫法）。
+  主顯示邊個係 per-user 設定（工具列「出街名 / 廠商名」，暫時 localStorage），另一個名細字跟住；搜尋兩個名都搵到
+- 縮圖：暫時係分類配色方塊，真相片由 Shopify 同步層嚟（只讀）；廠家嗰邊有冇圖要問 Ocean
+- 來源類型：儲定貨 / 落單訂 / 訂造；「可售」只對儲定貨款有意思，其餘顯示 —
+- 毛利低過 40% 會標色；多選 + 批量上架 / 下架 / 改價
 
 ## 密集模式點樣做到密
 
@@ -144,8 +176,10 @@ src/
   code 入面有 `TODO(prototype)` 標住要對返。
 - **深淺色**：CLAUDE.md 要求跟系統 + 手動鎖定，但 `theme.ts` 只有淺色 token，
   冇 dark 算法或 dark 色值。要 Ocean 定咗暗色調色板先做得，唔應該由 code 自己作。
-- **舊三個畫面未行 string key**：訂單／產品／庫存仲係 hardcode 中文，
-  違反 CLAUDE.md 嘅 i18n 規則，要補遷。
+- **Q12（包件資料邊個入）**：而家假設落單（上載訂貨確認）時就建立包件，編碼 = 廠家型號 + 訂單號 + 件序；
+  真正答案好可能係供應商發貨表本身有包件編碼，等 Alex 畀一份真表先定。
+- **備貨款清單**：邊啲款算儲定貨、比例幾多，fixture 假設 2%，要 Ocean 定。
+- **Excel 發貨表**：而家淨係讀 CSV，xlsx 要後台先做。
 - **登入未接後台**：session 係 mock token 放喺 storage；真 API 要簽 JWT、
   server 端鎖定、重設連結經電郵。Google SSO 要等 Workspace tenant。
 - 未決假設（CLAUDE.md 要求寫低）：
@@ -156,6 +190,6 @@ src/
 
 ## 未接嘅嘢
 
-訂單資料喺 `src/data/orders.ts` 寫死；產品同庫存由 `src/data/catalog.ts`
-用固定 seed 生成，每次開都係同一批貨。除咗庫存調整之外，其餘操作
-（新增訂單、安排送貨、批量上架、匯入匯出、盤點）只彈提示，未接後台 API。
+訂單資料喺 `src/data/orders.ts` 寫死；產品由 `src/data/catalog.ts`、採購 / 包件 / move 由 `src/data/ops.ts`
+用固定 seed 生成，每次開都係同一批貨。生成採購表、上載訂貨確認、套用發貨表、生成存貨需求會即時改 in-memory store
+（refresh 就重置）；其餘操作（新增訂單、安排送貨、批量上架、匯入匯出、盤點、調撥）只彈提示，未接後台 API。
