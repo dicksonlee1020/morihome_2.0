@@ -1,4 +1,5 @@
 import type { Product, ProductStatus, Stock } from '../types';
+import type { MessageKey } from '../i18n';
 
 /* =================================================================
  * 產品目錄 —— 示範資料
@@ -185,9 +186,9 @@ export const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({
 
 export const PRODUCT_STATUS_META: Record<
   ProductStatus,
-  { label: string; tone: 'success' | 'warning' | 'muted' }
+  { labelKey: MessageKey; tone: 'success' | 'warning' | 'muted' }
 > = {
-  active: { label: '已上架', tone: 'success' },
-  draft: { label: '草稿', tone: 'warning' },
-  archived: { label: '已下架', tone: 'muted' },
+  active: { labelKey: 'products.status.active', tone: 'success' },
+  draft: { labelKey: 'products.status.draft', tone: 'warning' },
+  archived: { labelKey: 'products.status.archived', tone: 'muted' },
 };

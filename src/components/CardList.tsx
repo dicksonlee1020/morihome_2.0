@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Empty, Flex, Pagination } from 'antd';
 import type { ReactNode } from 'react';
+import { useT } from '../i18n';
 
 interface CardListProps<T> {
   items: T[];
@@ -20,8 +21,9 @@ export function CardList<T>({
   rowKey,
   renderItem,
   pageSize = 10,
-  emptyText = '冇符合條件嘅記錄',
+  emptyText,
 }: CardListProps<T>) {
+  const t = useT();
   const [page, setPage] = useState(1);
   const [seen, setSeen] = useState(items);
 
@@ -37,7 +39,7 @@ export function CardList<T>({
     [items, page, pageSize]
   );
 
-  if (items.length === 0) return <Empty description={emptyText} />;
+  if (items.length === 0) return <Empty description={emptyText ?? t('common.empty')} />;
 
   return (
     <Flex vertical gap={8}>
@@ -52,8 +54,8 @@ export function CardList<T>({
         total={items.length}
         onChange={setPage}
         showSizeChanger={false}
-        showTotal={(t, r) =>
-          `第 ${r[0]}–${r[1]} 項，共 ${t.toLocaleString('en-HK')} 項`
+        showTotal={(total, r) =>
+          t('common.pageTotal', { from: r[0], to: r[1], total: total.toLocaleString('en-HK') })
         }
         style={{ marginTop: 4 }}
       />

@@ -7,12 +7,11 @@ import { Logo } from '../../components/Logo';
 const { Text } = Typography;
 
 /**
- * Aspect ratio of the artwork under the logo on desktop (width / height),
- * from the Canva design DAG59xpOkik. The slot keeps this shape while the
- * image loads so the card never jumps.
+ * Artwork under the logo on desktop (Canva design DAG59xpOkik, page 1,
+ * 1080x1080). The slot stretches to the card's bottom edge and the photo is
+ * centre-cropped into it, so the left column always ends level with the card.
  */
-const HERO_ASPECT = 1;
-const HERO_SRC = `${import.meta.env.BASE_URL}brand/login-hero.png`;
+const HERO_SRC = `${import.meta.env.BASE_URL}brand/login-hero.jpg`;
 
 /**
  * Frame shared by sign-in, forgot-password and reset-password.
@@ -79,18 +78,24 @@ export function AuthLayout({ children }: { children: ReactNode }) {
     >
       <div style={{ position: 'absolute', top: 24, right: 32 }}>{languageSwitch}</div>
 
+      {/* No flex:1 here on purpose: the row must be as tall as the card, not
+          the viewport, so the artwork ends level with the card's bottom. */}
       <Flex
-        align="flex-start"
+        align="stretch"
         justify="center"
         gap={64}
-        style={{ flex: 1, padding: '96px 64px 48px' }}
+        style={{ padding: '96px 64px 48px' }}
       >
         <Flex vertical gap={28} style={{ flex: '0 1 560px', minWidth: 0 }}>
           {brand}
           <div
             style={{
               width: '100%',
-              aspectRatio: String(HERO_ASPECT),
+              // basis 0 + absolute image: the block takes whatever height the
+              // card leaves, never the photo's own 1:1 height
+              flex: '1 1 0',
+              minHeight: 320,
+              position: 'relative',
               borderRadius: 10,
               overflow: 'hidden',
               background: colors.sand,
@@ -99,7 +104,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
             <img
               src={HERO_SRC}
               alt=""
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               draggable={false}
               // Until the artwork is in public/brand/, show the sand block
               // rather than a broken-image icon.
@@ -108,7 +113,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
           </div>
         </Flex>
 
-        <Flex vertical style={{ flex: '0 1 440px', minWidth: 0 }}>
+        <Flex vertical align="stretch" justify="flex-start" style={{ flex: '0 1 440px', minWidth: 0 }}>
           <Card
             styles={{ body: { padding: 32 } }}
             style={{ boxShadow: '0 4px 6px -2px rgba(26,26,26,0.20)' }}

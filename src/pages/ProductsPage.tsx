@@ -37,6 +37,7 @@ import type { Product, ProductStatus } from '../types';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
 import { useTableHeight } from '../utils/useTableHeight';
+import { useT } from '../i18n';
 import { useDensity } from '../utils/useDensity';
 
 const { Text, Title } = Typography;
@@ -49,6 +50,7 @@ const MARGIN_FLOOR = 0.4;
 export function ProductsPage() {
   const { message } = App.useApp();
   const isMobile = useIsMobile();
+  const t = useT();
   const tableHeight = useTableHeight(470);
   const { w } = useDensity();
 
@@ -103,7 +105,7 @@ export function ProductsPage() {
       ),
     },
     {
-      title: '貨品名稱',
+      title: t('products.col.name'),
       dataIndex: 'name',
       width: w(230),
       render: (_, p) => (
@@ -115,17 +117,17 @@ export function ProductsPage() {
         </Flex>
       ),
     },
-    { title: '分類', dataIndex: 'category', width: w(80) },
-    { title: '系列', dataIndex: 'series', width: w(80) },
+    { title: t('common.category'), dataIndex: 'category', width: w(80) },
+    { title: t('products.col.series'), dataIndex: 'series', width: w(80) },
     {
-      title: '供應商',
+      title: t('products.col.supplier'),
       dataIndex: 'supplier',
       width: w(140),
       responsive: ['xxl'],
       render: (s: string) => <Text type="secondary" ellipsis>{s}</Text>,
     },
     {
-      title: '成本',
+      title: t('products.col.cost'),
       dataIndex: 'cost',
       width: w(90),
       align: 'right',
@@ -133,7 +135,7 @@ export function ProductsPage() {
       render: (c: number) => <Text type="secondary">{amount(c)}</Text>,
     },
     {
-      title: '售價',
+      title: t('products.col.price'),
       dataIndex: 'price',
       width: w(90),
       align: 'right',
@@ -141,7 +143,7 @@ export function ProductsPage() {
       render: (p: number) => <Text style={{ fontWeight: 500 }}>{amount(p)}</Text>,
     },
     {
-      title: '毛利',
+      title: t('products.col.margin'),
       key: 'margin',
       width: w(80),
       align: 'right',
@@ -150,7 +152,7 @@ export function ProductsPage() {
         const m = margin(p);
         const thin = m < MARGIN_FLOOR;
         return (
-          <Tooltip title={thin ? `低過 ${percent(MARGIN_FLOOR)}，覆下成本價` : undefined}>
+          <Tooltip title={thin ? t('products.marginHint', { floor: percent(MARGIN_FLOOR) }) : undefined}>
             <Text style={{ color: thin ? colors.warningText : undefined, fontWeight: thin ? 500 : undefined }}>
               {percent(m)}
             </Text>
@@ -159,7 +161,7 @@ export function ProductsPage() {
       },
     },
     {
-      title: '可售',
+      title: t('products.col.sellable'),
       key: 'sellable',
       width: w(80),
       align: 'right',
@@ -180,16 +182,16 @@ export function ProductsPage() {
       },
     },
     {
-      title: '狀態',
+      title: t('common.status'),
       dataIndex: 'status',
       width: w(90),
       render: (s: ProductStatus) => {
         const m = PRODUCT_STATUS_META[s];
-        return <Pill tone={m.tone} dot>{m.label}</Pill>;
+        return <Pill tone={m.tone} dot>{t(m.labelKey)}</Pill>;
       },
     },
     {
-      title: '最後更新',
+      title: t('products.col.updatedAt'),
       dataIndex: 'updatedAt',
       width: w(100),
       responsive: ['xl'],
@@ -203,14 +205,14 @@ export function ProductsPage() {
       <Input
         allowClear
         prefix={<SearchOutlined style={{ color: colors.textMuted }} />}
-        placeholder="搵 SKU 或貨品名"
+        placeholder={t('common.search.sku')}
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
         style={{ width: isMobile ? '100%' : 240 }}
       />
       <Select
         allowClear
-        placeholder="分類"
+        placeholder={t('common.category')}
         value={category}
         onChange={setCategory}
         options={CATEGORY_OPTIONS}
@@ -218,7 +220,7 @@ export function ProductsPage() {
       />
       <Select
         allowClear
-        placeholder="系列"
+        placeholder={t('products.filter.series')}
         value={series}
         onChange={setSeries}
         options={SERIES.map((s) => ({ value: s, label: s }))}
@@ -226,7 +228,7 @@ export function ProductsPage() {
       />
       <Flex align="center" gap={8}>
         <Switch checked={outOnly} onChange={setOutOnly} size="small" />
-        <Text type="secondary">只睇缺貨</Text>
+        <Text type="secondary">{t('products.outOnly')}</Text>
       </Flex>
     </Flex>
   );
@@ -236,27 +238,27 @@ export function ProductsPage() {
       <Flex align="center" justify="space-between" wrap gap={12}>
         <Flex vertical gap={2}>
           <Title level={1} style={{ margin: 0 }}>
-            產品
+            {t('products.title')}
           </Title>
           <Text type="secondary">
-            共 {TOTAL_SKU.toLocaleString('en-HK')} 個 SKU
+            {t('products.subtitle', { n: TOTAL_SKU.toLocaleString('en-HK') })}
           </Text>
         </Flex>
         <Space>
-          <Button icon={<UploadOutlined />}>匯入 CSV</Button>
-          <Button icon={<DownloadOutlined />}>匯出</Button>
+          <Button icon={<UploadOutlined />}>{t('products.importCsv')}</Button>
+          <Button icon={<DownloadOutlined />}>{t('common.export')}</Button>
           <Button type="primary" icon={<PlusOutlined />}>
-            新增產品
+            {t('products.new')}
           </Button>
         </Space>
       </Flex>
 
       <Row gutter={[12, 12]}>
         {[
-          { title: '已上架', value: stats.active.toLocaleString('en-HK') },
-          { title: '草稿', value: stats.draft.toLocaleString('en-HK') },
-          { title: '已上架但缺貨', value: stats.out.toLocaleString('en-HK'), warn: true },
-          { title: '庫存成本值', value: money(stats.stockValue) },
+          { title: t('products.stat.active'), value: stats.active.toLocaleString('en-HK') },
+          { title: t('products.stat.draft'), value: stats.draft.toLocaleString('en-HK') },
+          { title: t('products.stat.activeOut'), value: stats.out.toLocaleString('en-HK'), warn: true },
+          { title: t('products.stat.stockValue'), value: money(stats.stockValue) },
         ].map((s) => (
           <Col key={s.title} xs={12} lg={6}>
             <Card size="small">
@@ -285,10 +287,10 @@ export function ProductsPage() {
               onChange={setStatus}
               style={{ width: '100%' }}
               options={[
-                { value: 'all', label: '全部狀態' },
+                { value: 'all', label: t('products.status.all') },
                 ...Object.entries(PRODUCT_STATUS_META).map(([v, m]) => ({
                   value: v,
-                  label: m.label,
+                  label: t(m.labelKey),
                 })),
               ]}
             />
@@ -297,10 +299,10 @@ export function ProductsPage() {
               value={status}
               onChange={(v) => setStatus(v as StatusFilter)}
               options={[
-                { value: 'all', label: '全部' },
+                { value: 'all', label: t('common.all') },
                 ...Object.entries(PRODUCT_STATUS_META).map(([v, m]) => ({
                   value: v,
-                  label: m.label,
+                  label: t(m.labelKey),
                 })),
               ]}
             />
@@ -309,7 +311,7 @@ export function ProductsPage() {
         extra={
           !isMobile && (
             <Text type="secondary">
-              篩選後 {rows.length.toLocaleString('en-HK')} 個 SKU
+              {t('common.filteredSku', { n: rows.length.toLocaleString('en-HK') })}
             </Text>
           )
         }
@@ -329,19 +331,19 @@ export function ProductsPage() {
                 borderRadius: 6,
               }}
             >
-              <Text>已揀 {selected.length} 個 SKU</Text>
+              <Text>{t('common.selectedSku', { n: selected.length })}</Text>
               <Space>
-                <Button size="small" onClick={() => message.success(`已上架 ${selected.length} 個 SKU`)}>
-                  批量上架
+                <Button size="small" onClick={() => message.success(t('products.bulk.published', { n: selected.length }))}>
+                  {t('products.bulk.publish')}
                 </Button>
-                <Button size="small" onClick={() => message.success(`已下架 ${selected.length} 個 SKU`)}>
-                  批量下架
+                <Button size="small" onClick={() => message.success(t('products.bulk.unpublished', { n: selected.length }))}>
+                  {t('products.bulk.unpublish')}
                 </Button>
-                <Button size="small" onClick={() => message.info('改價面板未接後台')}>
-                  批量改價
+                <Button size="small" onClick={() => message.info(t('products.bulk.repriceDemo'))}>
+                  {t('products.bulk.reprice')}
                 </Button>
                 <Button size="small" type="text" onClick={() => setSelected([])}>
-                  清除
+                  {t('common.clear')}
                 </Button>
               </Space>
             </Flex>
@@ -374,11 +376,12 @@ export function ProductsPage() {
 
 /** 手機版：密集表格喺 390px 完全用唔到，改用卡 */
 function ProductCards({ products }: { products: Product[] }) {
+  const t = useT();
   return (
     <CardList
       items={products}
       rowKey={(p) => p.sku}
-      emptyText="冇符合條件嘅 SKU"
+      emptyText={t('common.emptySku')}
       renderItem={(p) => {
         const meta = PRODUCT_STATUS_META[p.status];
         const state = stockState(p.stock);
@@ -388,7 +391,7 @@ function ProductCards({ products }: { products: Product[] }) {
                 <Flex align="center" justify="space-between" gap={8}>
                   <Text style={{ fontWeight: 600 }}>{p.sku}</Text>
                   <Pill tone={meta.tone} dot>
-                    {meta.label}
+                    {t(meta.labelKey)}
                   </Pill>
                 </Flex>
                 <Flex vertical gap={2}>
@@ -411,9 +414,9 @@ function ProductCards({ products }: { products: Product[] }) {
                             : colors.textSecondary,
                     }}
                   >
-                    可售 {sellable(p.stock)}
-                    {state === 'out' && ' · 缺貨'}
-                    {state === 'low' && ' · 偏低'}
+                    {t('products.card.sellable', { n: sellable(p.stock) })}
+                    {state === 'out' && ` · ${t('products.card.out')}`}
+                    {state === 'low' && ` · ${t('products.card.low')}`}
                   </Text>
                 </Flex>
               </Flex>

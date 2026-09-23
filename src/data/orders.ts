@@ -1,4 +1,5 @@
 import { colors } from '../theme';
+import type { MessageKey } from '../i18n';
 import type {
   Channel,
   Order,
@@ -6,34 +7,34 @@ import type {
   PaymentStatus,
 } from '../types';
 
-/** 狀態顏色一律由 theme 嘅 colors 出，唔好喺畫面度寫死 hex。 */
+/** Status colours come from the theme; labels are i18n keys, never text. */
 export const STATUS_META: Record<
   OrderStatus,
-  { label: string; color: string; bg: string }
+  { labelKey: MessageKey; color: string; bg: string }
 > = {
-  pending: { label: '待確認', color: colors.warningText, bg: colors.warningBg },
-  confirmed: { label: '已確認', color: colors.primary, bg: colors.primarySubtle },
-  preparing: { label: '備貨中', color: colors.wood, bg: colors.sand },
-  ready: { label: '待送貨', color: colors.primary, bg: colors.primarySubtle },
-  delivered: { label: '已送貨', color: colors.success, bg: colors.successBg },
-  cancelled: { label: '已取消', color: colors.textSecondary, bg: colors.bgHover },
+  pending: { labelKey: 'orders.status.pending', color: colors.warningText, bg: colors.warningBg },
+  confirmed: { labelKey: 'orders.status.confirmed', color: colors.primary, bg: colors.primarySubtle },
+  preparing: { labelKey: 'orders.status.preparing', color: colors.wood, bg: colors.sand },
+  ready: { labelKey: 'orders.status.ready', color: colors.primary, bg: colors.primarySubtle },
+  delivered: { labelKey: 'orders.status.delivered', color: colors.success, bg: colors.successBg },
+  cancelled: { labelKey: 'orders.status.cancelled', color: colors.textSecondary, bg: colors.bgHover },
 };
 
 export const PAYMENT_META: Record<
   PaymentStatus,
-  { label: string; color: string; bg: string }
+  { labelKey: MessageKey; color: string; bg: string }
 > = {
-  unpaid: { label: '未付款', color: colors.error, bg: colors.errorBg },
-  deposit: { label: '已付訂金', color: colors.warningText, bg: colors.warningBg },
-  paid: { label: '已付清', color: colors.success, bg: colors.successBg },
-  refunded: { label: '已退款', color: colors.textSecondary, bg: colors.bgHover },
+  unpaid: { labelKey: 'orders.paymentStatus.unpaid', color: colors.error, bg: colors.errorBg },
+  deposit: { labelKey: 'orders.paymentStatus.deposit', color: colors.warningText, bg: colors.warningBg },
+  paid: { labelKey: 'orders.paymentStatus.paid', color: colors.success, bg: colors.successBg },
+  refunded: { labelKey: 'orders.paymentStatus.refunded', color: colors.textSecondary, bg: colors.bgHover },
 };
 
-export const CHANNEL_META: Record<Channel, { label: string }> = {
-  shopify: { label: '網店' },
-  whatsapp: { label: 'WhatsApp' },
-  showroom: { label: '門市' },
-  phone: { label: '電話' },
+export const CHANNEL_META: Record<Channel, { labelKey: MessageKey }> = {
+  shopify: { labelKey: 'orders.channel.shopify' },
+  whatsapp: { labelKey: 'orders.channel.whatsapp' },
+  showroom: { labelKey: 'orders.channel.showroom' },
+  phone: { labelKey: 'orders.channel.phone' },
 };
 
 export const STATUS_ORDER: OrderStatus[] = [

@@ -40,6 +40,7 @@ import { colors, useIsMobile } from '../theme';
 import { orderQty, orderTotal } from '../types';
 import type { Order, OrderStatus } from '../types';
 import { Pill } from '../components/Pill';
+import { useT } from '../i18n';
 import { OrderCards } from '../components/OrderCards';
 
 const { Text, Title } = Typography;
@@ -57,6 +58,7 @@ type StatusFilter = OrderStatus | 'all';
 export function OrdersPage() {
   const { message } = App.useApp();
   const isMobile = useIsMobile();
+  const t = useT();
 
   const [data] = useState<Order[]>(seedOrders);
   const [status, setStatus] = useState<StatusFilter>('all');
@@ -115,7 +117,7 @@ export function OrdersPage() {
 
   const columns: TableColumnsType<Order> = [
     {
-      title: '訂單編號',
+      title: t('orders.col.id'),
       dataIndex: 'id',
       width: 118,
       fixed: 'left',
@@ -126,7 +128,7 @@ export function OrdersPage() {
       ),
     },
     {
-      title: '客戶',
+      title: t('orders.col.customer'),
       dataIndex: ['customer', 'name'],
       width: 140,
       render: (_, o) => (
@@ -139,14 +141,14 @@ export function OrdersPage() {
       ),
     },
     {
-      title: '渠道',
+      title: t('orders.col.channel'),
       dataIndex: 'channel',
       width: 88,
       responsive: ['lg'],
-      render: (c: Order['channel']) => <Pill>{CHANNEL_META[c].label}</Pill>,
+      render: (c: Order['channel']) => <Pill>{t(CHANNEL_META[c].labelKey)}</Pill>,
     },
     {
-      title: '落單日期',
+      title: t('orders.col.orderedAt'),
       dataIndex: 'createdAt',
       width: 112,
       responsive: ['md'],
@@ -154,28 +156,28 @@ export function OrdersPage() {
       render: (d: string) => <Text type="secondary">{dayjs(d).format('YYYY-MM-DD')}</Text>,
     },
     {
-      title: '送貨日期',
+      title: t('orders.col.deliveryAt'),
       dataIndex: 'deliveryAt',
       width: 132,
       sorter: (a, b) =>
         dayjs(a.deliveryAt ?? '2099-12-31').valueOf() -
         dayjs(b.deliveryAt ?? '2099-12-31').valueOf(),
       render: (_, o) => {
-        if (!o.deliveryAt) return <Text type="secondary">未約</Text>;
+        if (!o.deliveryAt) return <Text type="secondary">{t('orders.notScheduled')}</Text>;
         const label = dayjs(o.deliveryAt).format('YYYY-MM-DD');
         if (!isOverdue(o)) return <Text style={nowrap}>{label}</Text>;
         return (
-          <Tooltip title="已過送貨日仍未送出">
+          <Tooltip title={t('orders.overdueHint')}>
             <Flex vertical gap={2}>
               <Text style={{ ...nowrap, color: colors.error, fontWeight: 500 }}>{label}</Text>
-              <Text style={{ ...nowrap, color: colors.error, fontSize: 13 }}>逾期未送</Text>
+              <Text style={{ ...nowrap, color: colors.error, fontSize: 13 }}>{t('orders.overdue')}</Text>
             </Flex>
           </Tooltip>
         );
       },
     },
     {
-      title: '件數',
+      title: t('orders.col.qty'),
       key: 'qty',
       width: 64,
       align: 'right',
@@ -183,7 +185,7 @@ export function OrdersPage() {
       render: (_, o) => <Text type="secondary">{orderQty(o)}</Text>,
     },
     {
-      title: '金額',
+      title: t('orders.col.amount'),
       key: 'amount',
       width: 118,
       align: 'right',
@@ -191,25 +193,25 @@ export function OrdersPage() {
       render: (_, o) => <Text style={{ fontWeight: 500 }}>{money(orderTotal(o))}</Text>,
     },
     {
-      title: '付款',
+      title: t('orders.col.payment'),
       dataIndex: 'payment',
       width: 98,
       render: (p: Order['payment']) => {
         const m = PAYMENT_META[p];
-        return <Pill color={m.color} bg={m.bg}>{m.label}</Pill>;
+        return <Pill color={m.color} bg={m.bg}>{t(m.labelKey)}</Pill>;
       },
     },
     {
-      title: '狀態',
+      title: t('orders.col.status'),
       dataIndex: 'status',
       width: 98,
       render: (s: OrderStatus) => {
         const m = STATUS_META[s];
-        return <Pill color={m.color} bg={m.bg} dot>{m.label}</Pill>;
+        return <Pill color={m.color} bg={m.bg} dot>{t(m.labelKey)}</Pill>;
       },
     },
     {
-      title: '跟進',
+      title: t('orders.col.assignee'),
       dataIndex: 'assignee',
       width: 78,
       // xl = 1200px，1440 闊會逼到最尾兩欄；留到 xxl(1600) 先出
@@ -227,13 +229,13 @@ export function OrdersPage() {
           trigger={['click']}
           menu={{
             items: [
-              { key: 'view', label: '查看訂單' },
-              { key: 'print', label: '列印送貨單' },
-              { key: 'whatsapp', label: 'WhatsApp 通知客戶' },
+              { key: 'view', label: t('orders.action.view') },
+              { key: 'print', label: t('orders.action.print') },
+              { key: 'whatsapp', label: t('orders.action.whatsapp') },
               { type: 'divider' },
-              { key: 'cancel', label: '取消訂單', danger: true },
+              { key: 'cancel', label: t('orders.action.cancel'), danger: true },
             ],
-            onClick: ({ key }) => message.info(`${o.id}：${key}（示範畫面，未接後台）`),
+            onClick: ({ key }) => message.info(t('orders.actionDemo', { id: o.id, action: key, note: t('common.notWired') })),
           }}
         >
           <Button type="text" icon={<MoreOutlined />} />
@@ -243,9 +245,9 @@ export function OrdersPage() {
   ];
 
   const segmentOptions = [
-    { label: `全部 ${counts.all}`, value: 'all' },
+    { label: `${t('common.all')} ${counts.all}`, value: 'all' },
     ...STATUS_ORDER.map((s) => ({
-      label: `${STATUS_META[s].label} ${counts[s]}`,
+      label: `${t(STATUS_META[s].labelKey)} ${counts[s]}`,
       value: s,
     })),
   ];
@@ -255,26 +257,26 @@ export function OrdersPage() {
       <Flex align="center" justify="space-between" wrap gap={12}>
         <Flex vertical gap={2}>
           <Title level={1} style={{ margin: 0 }}>
-            訂單
+            {t('orders.title')}
           </Title>
           <Text type="secondary">
-            管理落單、備貨同送貨進度 · 資料截至 {TODAY.format('YYYY-MM-DD')}
+            {t('orders.subtitle', { date: TODAY.format('YYYY-MM-DD') })}
           </Text>
         </Flex>
         <Space>
-          <Button icon={<DownloadOutlined />}>匯出</Button>
+          <Button icon={<DownloadOutlined />}>{t('common.export')}</Button>
           <Button type="primary" icon={<PlusOutlined />}>
-            新增訂單
+            {t('orders.new')}
           </Button>
         </Space>
       </Flex>
 
       <Row gutter={[16, 16]}>
         {[
-          { title: '昨日新訂單', value: stats.today, suffix: '張' },
-          { title: '待處理', value: stats.handling, suffix: '張' },
-          { title: '待送貨', value: stats.shipping, suffix: '張' },
-          { title: '訂單總額（未計取消）', value: money(stats.revenue) },
+          { title: t('orders.stat.yesterdayNew'), value: stats.today, suffix: t('orders.unit') },
+          { title: t('orders.stat.handling'), value: stats.handling, suffix: t('orders.unit') },
+          { title: t('orders.stat.shipping'), value: stats.shipping, suffix: t('orders.unit') },
+          { title: t('orders.stat.revenue'), value: money(stats.revenue) },
         ].map((s) => (
           <Col key={s.title} xs={12} lg={6}>
             <Card size="small">
@@ -310,8 +312,8 @@ export function OrdersPage() {
         extra={
           !isMobile && (
             <Space>
-              <Tooltip title="重新整理">
-                <Button icon={<ReloadOutlined />} onClick={() => message.success('已更新')} />
+              <Tooltip title={t('common.refresh')}>
+                <Button icon={<ReloadOutlined />} onClick={() => message.success(t('common.refreshed'))} />
               </Tooltip>
               <Button icon={<EllipsisOutlined />} />
             </Space>
@@ -322,7 +324,7 @@ export function OrdersPage() {
           <Input
             allowClear
             prefix={<SearchOutlined style={{ color: colors.textMuted }} />}
-            placeholder="搵訂單編號、客戶、電話或貨品"
+            placeholder={t('orders.search')}
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             style={{ width: isMobile ? '100%' : 300 }}
@@ -332,17 +334,17 @@ export function OrdersPage() {
             onChange={setPayment}
             style={{ width: isMobile ? '100%' : 150 }}
             options={[
-              { value: 'all', label: '所有付款狀態' },
+              { value: 'all', label: t('orders.payment.all') },
               ...Object.entries(PAYMENT_META).map(([v, m]) => ({
                 value: v,
-                label: m.label,
+                label: t(m.labelKey),
               })),
             ]}
           />
           <DatePicker.RangePicker
             value={range}
             onChange={(v) => setRange(v as [Dayjs, Dayjs] | null)}
-            placeholder={['落單由', '落單至']}
+            placeholder={[t('orders.dateFrom'), t('orders.dateTo')]}
             style={{ width: isMobile ? '100%' : 260 }}
           />
         </Flex>
@@ -360,16 +362,16 @@ export function OrdersPage() {
               borderRadius: 6,
             }}
           >
-            <Text>已揀 {selected.length} 張訂單</Text>
+            <Text>{t('orders.selected', { n: selected.length })}</Text>
             <Space>
-              <Button size="small" icon={<TruckOutlined />} onClick={() => message.success(`已為 ${selected.length} 張訂單安排送貨`)}>
-                安排送貨
+              <Button size="small" icon={<TruckOutlined />} onClick={() => message.success(t('orders.bulk.scheduled', { n: selected.length }))}>
+                {t('orders.bulk.schedule')}
               </Button>
-              <Button size="small" onClick={() => message.success('已匯出')}>
-                匯出所揀
+              <Button size="small" onClick={() => message.success(t('common.exported'))}>
+                {t('orders.bulk.export')}
               </Button>
               <Button size="small" type="text" onClick={() => setSelected([])}>
-                清除
+                {t('common.clear')}
               </Button>
             </Space>
           </Flex>
@@ -394,12 +396,12 @@ export function OrdersPage() {
               rowExpandable: () => true,
             }}
             locale={{
-              emptyText: <Empty description="冇符合條件嘅訂單" />,
+              emptyText: <Empty description={t('orders.empty')} />,
             }}
             pagination={{
               pageSize: 10,
               showSizeChanger: true,
-              showTotal: (t, r) => `第 ${r[0]}–${r[1]} 張，共 ${t} 張`,
+              showTotal: (total, r) => t('orders.pageTotal', { from: r[0], to: r[1], total }),
             }}
             summary={() =>
               rows.length > 0 ? (
@@ -408,10 +410,10 @@ export function OrdersPage() {
                     <Table.Summary.Cell index={0} colSpan={columns.length + 2}>
                       <Flex align="center" justify="space-between" gap={12}>
                         <Text type="secondary">
-                          目前篩選：{rows.length} 張訂單
+                          {t('orders.summary.count', { n: rows.length })}
                         </Text>
                         <Text style={{ fontWeight: 600 }}>
-                          合計 {money(filteredTotal)}
+                          {t('orders.summary.total', { amount: money(filteredTotal) })}
                         </Text>
                       </Flex>
                     </Table.Summary.Cell>
@@ -427,10 +429,11 @@ export function OrdersPage() {
 }
 
 function OrderDetail({ order }: { order: Order }) {
+  const t = useT();
   return (
     <Flex vertical gap={12} style={{ padding: '4px 0' }}>
       {order.remark && (
-        <Text style={{ color: colors.warningText }}>備註：{order.remark}</Text>
+        <Text style={{ color: colors.warningText }}>{t('orders.remark', { text: order.remark })}</Text>
       )}
       <Table
         rowKey="sku"
@@ -439,17 +442,17 @@ function OrderDetail({ order }: { order: Order }) {
         dataSource={order.items}
         columns={[
           { title: 'SKU', dataIndex: 'sku', width: 140 },
-          { title: '貨品', dataIndex: 'name' },
-          { title: '數量', dataIndex: 'qty', width: 80, align: 'right' },
+          { title: t('orders.item.name'), dataIndex: 'name' },
+          { title: t('orders.item.qty'), dataIndex: 'qty', width: 80, align: 'right' },
           {
-            title: '單價',
+            title: t('orders.item.price'),
             dataIndex: 'price',
             width: 120,
             align: 'right',
             render: (p: number) => money(p),
           },
           {
-            title: '小計',
+            title: t('orders.item.subtotal'),
             key: 'sub',
             width: 130,
             align: 'right',

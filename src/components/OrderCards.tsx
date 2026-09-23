@@ -3,6 +3,7 @@ import { Button, Card, Divider, Flex, Typography } from 'antd';
 import { DownOutlined, RightOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { CHANNEL_META, PAYMENT_META, STATUS_META } from '../data/orders';
+import { useT } from '../i18n';
 import { colors } from '../theme';
 import { orderQty, orderTotal } from '../types';
 import type { Order } from '../types';
@@ -23,6 +24,7 @@ interface Props {
  * 所以手機改用卡片：一眼見到「邊張單、幾錢、乜狀態、幾時送」。
  */
 export function OrderCards({ orders, money, isOverdue }: Props) {
+  const t = useT();
   const [open, setOpen] = useState<string[]>([]);
   const toggle = (id: string) =>
     setOpen((prev) =>
@@ -34,7 +36,7 @@ export function OrderCards({ orders, money, isOverdue }: Props) {
       items={orders}
       rowKey={(o) => o.id}
       pageSize={8}
-      emptyText="冇符合條件嘅訂單"
+      emptyText={t('orders.empty')}
       renderItem={(o) => {
         const status = STATUS_META[o.status];
         const payment = PAYMENT_META[o.payment];
@@ -46,7 +48,7 @@ export function OrderCards({ orders, money, isOverdue }: Props) {
                 <Flex align="center" justify="space-between" gap={8}>
                   <Text style={{ fontWeight: 600 }}>{o.id}</Text>
                   <Pill color={status.color} bg={status.bg} dot>
-                    {status.label}
+                    {t(status.labelKey)}
                   </Pill>
                 </Flex>
 
@@ -54,7 +56,7 @@ export function OrderCards({ orders, money, isOverdue }: Props) {
                   <Flex vertical gap={2}>
                     <Text>{o.customer.name}</Text>
                     <Text type="secondary" style={{ fontSize: 13 }}>
-                      {o.customer.phone} · {CHANNEL_META[o.channel].label}
+                      {o.customer.phone} · {t(CHANNEL_META[o.channel].labelKey)}
                     </Text>
                   </Flex>
                   <Text style={{ fontSize: 16, fontWeight: 600 }}>
@@ -64,7 +66,7 @@ export function OrderCards({ orders, money, isOverdue }: Props) {
 
                 <Flex align="center" justify="space-between" gap={8} wrap>
                   <Text type="secondary" style={{ fontSize: 13 }}>
-                    送貨：
+                    {t('orders.delivery')}
                     {o.deliveryAt ? (
                       <Text
                         style={{
@@ -74,22 +76,22 @@ export function OrderCards({ orders, money, isOverdue }: Props) {
                         }}
                       >
                         {dayjs(o.deliveryAt).format('M月D日')}
-                        {isOverdue(o) && ' · 逾期未送'}
+                        {isOverdue(o) && ` · ${t('orders.overdue')}`}
                       </Text>
                     ) : (
                       <Text type="secondary" style={{ fontSize: 13 }}>
-                        未約
+                        {t('orders.notScheduled')}
                       </Text>
                     )}
                   </Text>
                   <Pill color={payment.color} bg={payment.bg}>
-                    {payment.label}
+                    {t(payment.labelKey)}
                   </Pill>
                 </Flex>
 
                 {o.remark && (
                   <Text style={{ fontSize: 13, color: colors.warningText }}>
-                    備註：{o.remark}
+                    {t('orders.remark', { text: o.remark })}
                   </Text>
                 )}
 
@@ -100,7 +102,7 @@ export function OrderCards({ orders, money, isOverdue }: Props) {
                   icon={expanded ? <DownOutlined /> : <RightOutlined />}
                   onClick={() => toggle(o.id)}
                 >
-                  {orderQty(o)} 件貨品
+                  {t('orders.items', { n: orderQty(o) })}
                 </Button>
 
                 {expanded && (
