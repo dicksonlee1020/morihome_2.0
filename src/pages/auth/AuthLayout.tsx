@@ -74,17 +74,19 @@ export function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <Flex
       vertical
+      justify="center"
       style={{ minHeight: '100vh', background: colors.warm, position: 'relative' }}
     >
       <div style={{ position: 'absolute', top: 24, right: 32 }}>{languageSwitch}</div>
 
-      {/* No flex:1 here on purpose: the row must be as tall as the card, not
-          the viewport, so the artwork ends level with the card's bottom. */}
+      {/* The row is as tall as the card (no flex:1), so the artwork ends level
+          with the card's bottom, and the whole group is centred in the
+          viewport with equal space above and below. */}
       <Flex
         align="stretch"
         justify="center"
         gap={64}
-        style={{ padding: '96px 64px 48px' }}
+        style={{ padding: '72px 64px' }}
       >
         <Flex vertical gap={28} style={{ flex: '0 1 560px', minWidth: 0 }}>
           {brand}
