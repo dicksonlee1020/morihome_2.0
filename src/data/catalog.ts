@@ -1,16 +1,49 @@
+import items from './fixtures/items.json';
 import type { Product, ProductStatus, SourcingType, Stock } from '../types';
 import type { MessageKey } from '../i18n';
 
 /* =================================================================
- * 產品目錄 —— 示範資料
- * 真實店有 5,241 個 SKU，密集畫面一定要喺呢個量級度試過先算數，
- * 所以呢度用固定 seed 生成同樣數量，唔係擺十幾行交差。
- * 換真 API 嘅時候，淨係掉走呢個檔案就得。
+ * 產品目錄 —— 由 Alex 份營運 Excel 抽出嘅廠家目錄（scripts/build-fixtures.mjs）
+ *
+ * 681 件：600 件源氏（有型號、廠家品名、規格、人民幣價、包件拆法）、
+ * 永偉 / 小敏 / 實木訂製 嘅訂造同復古款、床褥品牌（MEI / 澳美斯 / 金寶麗…）。
+ * 出街名 = 廠家品名去咗型號、簡轉繁；真出街名由 Shopify 同步層嚟，呢度先頂住。
+ * 客戶資料一個都冇讀過；Excel 本身唔入 repo。
  * ===============================================================*/
 
-export const TOTAL_SKU = 5241;
+interface FixtureItem {
+  supplier: string;
+  supplierCode: string;
+  supplierName: string;
+  ownName: string;
+  spec: string;
+  priceCny: number | null;
+  packages: string[];
+  category: string;
+  sourcingType: SourcingType;
+}
 
-/** mulberry32：細細粒、夠快、同一個 seed 每次出同一批貨 */
+const CATEGORIES: { key: string; label: string; prefix: string; factory: string }[] = [
+  { key: 'bed', label: '床架', prefix: 'BD', factory: '床架' },
+  { key: 'mattress', label: '床褥', prefix: 'MT', factory: '床垫' },
+  { key: 'sofa', label: '梳化', prefix: 'SF', factory: '沙发' },
+  { key: 'wardrobe', label: '衣櫃', prefix: 'WD', factory: '衣柜' },
+  { key: 'cabinet', label: '櫃', prefix: 'CB', factory: '柜' },
+  { key: 'table', label: '餐檯', prefix: 'TB', factory: '餐桌' },
+  { key: 'desk', label: '書桌', prefix: 'DK', factory: '书桌' },
+  { key: 'chair', label: '椅凳', prefix: 'CH', factory: '椅' },
+  { key: 'shelf', label: '層架', prefix: 'BK', factory: '架' },
+  { key: 'coffee', label: '茶几', prefix: 'CT', factory: '茶几' },
+  { key: 'side', label: '邊几 / 床頭櫃', prefix: 'SD', factory: '边几' },
+  { key: 'mirror', label: '鏡', prefix: 'MR', factory: '镜' },
+  { key: 'lamp', label: '燈飾', prefix: 'LP', factory: '灯' },
+  { key: 'storage', label: '收納', prefix: 'ST', factory: '收纳' },
+  { key: 'decor', label: '家品', prefix: 'AC', factory: '饰品' },
+];
+
+const categoryByKey = new Map(CATEGORIES.map((c) => [c.key, c]));
+
+/** mulberry32：固定 seed，每次開都係同一批數 */
 function mulberry32(seed: number) {
   let a = seed;
   return () => {
@@ -21,197 +54,106 @@ function mulberry32(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+const between = (rng: () => number, min: number, max: number) => min + rng() * (max - min);
 
-interface CategorySpec {
-  key: string;
-  label: string;
-  prefix: string;
-  /** 售價區間 */
-  price: [number, number];
-  forms: string[];
-  /** 呢個分類真係會用嘅材質（唔限制就會生成「陶瓷餐椅」呢啲鬼嘢） */
-  materials: string[];
-  /** 廠家發貨表上嘅叫法（簡體），同我哋出街名對照 */
-  factory: string;
-  /** 廠家型號字頭（見 docs 術語表：Y 原木色 / H 胡桃色 / K 黑胡桃 / X 煙熏） */
-  codePrefix: string;
-  /** 一件貨拆幾多個包件（床 = 床架 + 床頭 + 鋪板） */
-  packages: number;
-}
-
-const CATEGORIES: CategorySpec[] = [
-  { key: 'sofa', label: '梳化', prefix: 'SF', price: [3800, 22800], forms: ['單座位', '兩座位', '三座位', 'L 形', '腳踏'], materials: ['布藝', '真皮', '藤織', '亞麻'], factory: '沙发', codePrefix: 'S', packages: 2 },
-  { key: 'table', label: '餐檯', prefix: 'TB', price: [2800, 16800], forms: ['120cm', '140cm', '160cm', '180cm', '伸縮'], materials: ['橡木', '胡桃木', '松木', '雲石'], factory: '餐桌', codePrefix: 'Y', packages: 2 },
-  { key: 'chair', label: '餐椅', prefix: 'CH', price: [480, 3280], forms: ['直背', '扶手', '高腳', '摺疊'], materials: ['橡木', '胡桃木', '松木', '藤織', '布藝'], factory: '餐椅', codePrefix: 'Y', packages: 1 },
-  { key: 'bed', label: '床架', prefix: 'BD', price: [3200, 14800], forms: ['Single', 'Double', 'Queen', 'King'], materials: ['橡木', '胡桃木', '松木', '布藝', '真皮'], factory: '床架', codePrefix: 'Y', packages: 3 },
-  { key: 'mattress', label: '床褥', prefix: 'MT', price: [1800, 12800], forms: ['Single', 'Double', 'Queen', 'King'], materials: ['布藝', '亞麻'], factory: '床垫', codePrefix: 'M', packages: 1 },
-  { key: 'wardrobe', label: '衣櫃', prefix: 'WD', price: [4200, 18800], forms: ['雙門', '三門', '趟門', '開放式'], materials: ['橡木', '胡桃木', '松木'], factory: '衣柜', codePrefix: 'Y', packages: 3 },
-  { key: 'shelf', label: '書架', prefix: 'BK', price: [880, 6800], forms: ['三層', '四層', '五層', '轉角'], materials: ['橡木', '胡桃木', '松木'], factory: '书架', codePrefix: 'Y', packages: 2 },
-  { key: 'cabinet', label: '地櫃', prefix: 'CB', price: [1800, 13800], forms: ['120cm', '160cm', '200cm', '240cm'], materials: ['橡木', '胡桃木', '松木', '藤織'], factory: '餐边柜', codePrefix: 'Y', packages: 1 },
-  { key: 'coffee', label: '茶几', prefix: 'CT', price: [980, 5800], forms: ['圓形', '長方', '嵌套', '大理石面'], materials: ['橡木', '胡桃木', '雲石', '藤織'], factory: '茶几', codePrefix: 'Y', packages: 1 },
-  { key: 'side', label: '邊几', prefix: 'SD', price: [580, 2880], forms: ['45cm', '60cm', '90cm', 'C 形'], materials: ['橡木', '胡桃木', '雲石', '黃銅', '藤織'], factory: '边几', codePrefix: 'Y', packages: 1 },
-  { key: 'lamp', label: '燈飾', prefix: 'LP', price: [280, 4200], forms: ['檯燈', '座地燈', '吊燈', '壁燈'], materials: ['藤織', '黃銅', '陶瓷', '亞麻'], factory: '灯具', codePrefix: 'D', packages: 1 },
-  { key: 'rug', label: '地毯', prefix: 'RG', price: [680, 6800], forms: ['120x180', '160x230', '200x290', '240x340'], materials: ['亞麻', '布藝'], factory: '地毯', codePrefix: 'D', packages: 1 },
-  { key: 'mirror', label: '鏡', prefix: 'MR', price: [480, 3800], forms: ['圓鏡 60cm', '全身鏡 70cm', '掛鏡 90cm'], materials: ['橡木', '胡桃木', '黃銅', '藤織'], factory: '镜子', codePrefix: 'D', packages: 1 },
-  { key: 'storage', label: '收納', prefix: 'ST', price: [120, 1680], forms: ['藤籃', '布箱', '層架', '掛袋'], materials: ['藤織', '布藝', '亞麻'], factory: '收纳', codePrefix: 'D', packages: 1 },
-  { key: 'bedding', label: '寢具', prefix: 'BL', price: [180, 2280], forms: ['被套組', '床笠', '枕袋', '薄被'], materials: ['亞麻', '布藝'], factory: '床品', codePrefix: 'D', packages: 1 },
-  { key: 'decor', label: '家品', prefix: 'AC', price: [80, 1280], forms: ['花樽', '花盆', '托盤', '擺設', '掛鐘'], materials: ['陶瓷', '黃銅', '藤織'], factory: '饰品', codePrefix: 'D', packages: 1 },
-];
-
-const MATERIALS = [
-  { label: '橡木', code: 'OAK', mul: 1.25, factory: '白橡木' },
-  { label: '胡桃木', code: 'WNT', mul: 1.4, factory: '黑胡桃' },
-  { label: '松木', code: 'PIN', mul: 0.85, factory: '松木' },
-  { label: '藤織', code: 'RTN', mul: 1.0, factory: '藤编' },
-  { label: '布藝', code: 'BCL', mul: 0.95, factory: '布艺' },
-  { label: '真皮', code: 'LTH', mul: 1.7, factory: '真皮' },
-  { label: '亞麻', code: 'LIN', mul: 0.9, factory: '亚麻' },
-  { label: '雲石', code: 'MRB', mul: 1.55, factory: '大理石' },
-  { label: '黃銅', code: 'BRS', mul: 1.15, factory: '黄铜' },
-  { label: '陶瓷', code: 'CRM', mul: 0.8, factory: '陶瓷' },
-];
-
-const COLORS = ['米白', '原木', '炭灰', '奶茶', '墨綠', '焦糖', '淺灰', '深啡', '米棕', '霧藍'];
-/** 廠家嘅顏色叫法，同 COLORS 一一對應 */
-const FACTORY_COLORS = ['米白色', '原木色', '炭灰色', '奶茶色', '墨绿色', '焦糖色', '浅灰色', '深棕色', '米棕色', '雾霾蓝'];
-
-/**
- * 儲定貨嘅款只佔目錄一小部分：Ocean（2026-09-23）講明基本上見貨賣貨，
- * 存貨得幾件常賣款。呢個比例係假設，備貨款清單要 Ocean 定。
- */
-const STOCKED_SHARE = 0.02;
-const CUSTOM_SHARE = 0.12;
-
-export const SERIES = ['森原', '木栖', '晨光', '北岸', '簡白', '織日'];
-
-export const SUPPLIERS = [
-  '順德 · 永豐木業',
-  '東莞 · 明軒家具',
-  '越南 · Anh Phat',
-  '台中 · 合宜木工',
-  '佛山 · 恒發軟體',
-  '本地 · 訂造工房',
-];
-
-export const WAREHOUSES = [
-  { key: 'main', label: '葵涌倉' },
-  { key: 'shop', label: '門市' },
-] as const;
-
-const pick = <T,>(rng: () => number, arr: readonly T[]) =>
-  arr[Math.floor(rng() * arr.length)];
-
-const between = (rng: () => number, min: number, max: number) =>
-  min + rng() * (max - min);
-
-/** 日期由 2026-09-22 向後數，避免每次開檔案資料都郁 */
 const TODAY_MS = Date.UTC(2026, 8, 22);
 const DAY = 86_400_000;
+const daysAgo = (rng: () => number, min: number, max: number) =>
+  new Date(TODAY_MS - Math.floor(between(rng, min, max)) * DAY).toISOString().slice(0, 10);
+
+/**
+ * 人民幣 → 港幣成本用 1.08；售價 = 成本 × 2.75（spec Q5 提到嘅 priceMultiplier，用途未確認）。
+ * 冇人民幣價嘅（永偉 / 小敏 / 床褥）按分類抽一個合理數。
+ */
+const FX = 1.08;
+const PRICE_MULTIPLIER = 2.75;
+
+const FALLBACK_PRICE: Record<string, [number, number]> = {
+  bed: [6800, 14800],
+  sofa: [7800, 22800],
+  chair: [880, 3280],
+  table: [4800, 16800],
+  cabinet: [3200, 12800],
+  mattress: [2800, 9800],
+  decor: [280, 1280],
+};
+
+export const SERIES = ['和素', '柏林', '清里', '格林', '布拉格', '摩卡', '冉冉', '悠悠'];
 
 function buildProducts(): Product[] {
-  const rng = mulberry32(20260922);
-  const out: Product[] = [];
-  const seen = new Set<string>();
+  const rng = mulberry32(20260923);
+  const counters = new Map<string, number>();
+  return (items as FixtureItem[]).map((it, idx) => {
+    const cat = categoryByKey.get(it.category) ?? categoryByKey.get('decor')!;
+    const n = (counters.get(cat.key) ?? 0) + 1;
+    counters.set(cat.key, n);
+    const sku = `${cat.prefix}-${String(n).padStart(4, '0')}`;
 
-  for (let i = 0; i < TOTAL_SKU; i++) {
-    const cat = pick(rng, CATEGORIES);
-    // 注意：抽籤要喺 find 外面做。擺喺 predicate 入面嘅話，
-    // 每 check 一個材質就會重新抽一次，十次九次一個都對唔上。
-    const materialLabel = pick(rng, cat.materials);
-    const material =
-      MATERIALS.find((m) => m.label === materialLabel) ?? MATERIALS[0];
-    const form = pick(rng, cat.forms);
-    const color = pick(rng, COLORS);
+    const cost = it.priceCny
+      ? Math.round((it.priceCny * FX) / 10) * 10
+      : Math.round(between(rng, ...(FALLBACK_PRICE[cat.key] ?? [800, 4800])) * 0.4 / 10) * 10;
+    const price = Math.round((cost * PRICE_MULTIPLIER) / 20) * 20;
 
-    // SKU 要唯一，撞到就加後綴
-    let sku = `${cat.prefix}-${material.code}-${String(
-      Math.floor(between(rng, 100, 999))
-    )}`;
-    while (seen.has(sku)) sku = `${sku.slice(0, -1)}${Math.floor(rng() * 10)}`;
-    seen.add(sku);
-
-    const basePrice = between(rng, cat.price[0], cat.price[1]) * material.mul;
-    const price = Math.round(basePrice / 20) * 20;
-    const margin = between(rng, 0.34, 0.62); // 毛利率
-    const cost = Math.round((price * (1 - margin)) / 10) * 10;
-
+    // 源氏標準款多數已上架；訂造同床褥款 draft 多啲（未上 Shopify）
     const r = rng();
     const status: ProductStatus =
-      r < 0.74 ? 'active' : r < 0.9 ? 'draft' : 'archived';
+      it.sourcingType === 'custom' ? (r < 0.5 ? 'draft' : 'active') : r < 0.82 ? 'active' : r < 0.94 ? 'draft' : 'archived';
 
-    const sr = rng();
-    const sourcingType: SourcingType =
-      sr < STOCKED_SHARE ? 'stocked' : sr < STOCKED_SHARE + CUSTOM_SHARE ? 'custom' : 'orderOnDemand';
-
-    // 只有儲定貨款先會有在倉數同安全存量；其餘款嘅貨到港即屬某張客單，
-    // 由包件（src/data/ops.ts）而唔係呢度嘅數字表示。
-    const ceiling = price > 8000 ? 4 : price > 3000 ? 10 : 24;
     let stock: Stock = { main: 0, shop: 0, reserved: 0, inTransit: 0, safetyStock: 0, countedAt: '' };
-    if (sourcingType === 'stocked') {
+    if (it.sourcingType === 'stocked') {
+      const ceiling = price > 8000 ? 4 : price > 3000 ? 8 : 16;
       const s = rng();
-      // 一成斷貨、兩成偏低、其餘正常 —— 備貨表要有嘢提醒，但唔可以成張表都紅
-      const onHandMain =
-        s < 0.1 ? 0 : s < 0.3 ? Math.floor(between(rng, 1, Math.max(2, ceiling * 0.25))) : Math.floor(between(rng, ceiling * 0.4, ceiling));
-      const onHandShop = rng() < 0.35 && price < 8000 ? Math.floor(between(rng, 0, 4)) : 0;
-      const hand = onHandMain + onHandShop;
-      const reserved =
-        hand > 0 && rng() < 0.35
-          ? Math.min(hand, Math.max(1, Math.floor(hand * between(rng, 0.1, 0.5))))
-          : 0;
-      const inTransit = rng() < 0.3 ? Math.floor(between(rng, 1, ceiling)) : 0;
-      const safetyStock = Math.max(1, Math.floor(between(rng, 1, ceiling * 0.3)));
+      const main = s < 0.1 ? 0 : s < 0.3 ? Math.floor(between(rng, 1, Math.max(2, ceiling * 0.3))) : Math.floor(between(rng, ceiling * 0.4, ceiling));
+      const shop = rng() < 0.4 ? Math.floor(between(rng, 0, 3)) : 0;
+      const hand = main + shop;
+      const reserved = hand > 0 && rng() < 0.35 ? Math.max(1, Math.floor(hand * between(rng, 0.1, 0.5))) : 0;
       stock = {
-        main: onHandMain,
-        shop: onHandShop,
+        main,
+        shop,
         reserved,
-        inTransit,
-        safetyStock,
-        countedAt: new Date(TODAY_MS - Math.floor(between(rng, 1, 180)) * DAY).toISOString().slice(0, 10),
+        inTransit: rng() < 0.3 ? Math.floor(between(rng, 1, ceiling)) : 0,
+        safetyStock: Math.max(1, Math.floor(between(rng, 1, ceiling * 0.3))),
+        countedAt: daysAgo(rng, 1, 120),
       };
     }
 
-    // 廠家型號：字頭跟顏色（Y 原木 / H 胡桃 / K 黑胡桃），後面 2 位數 + 字母 + 2 位數
-    const codeHead =
-      material.label === '胡桃木' ? 'H' : material.label === '真皮' ? 'K' : cat.codePrefix;
-    const supplierCode = `${codeHead}${String(Math.floor(between(rng, 10, 99)))}${String.fromCharCode(65 + Math.floor(rng() * 26))}${String(Math.floor(between(rng, 10, 99))).padStart(2, '0')}`;
-    const supplierName = `${material.factory}${cat.factory} ${form} ${FACTORY_COLORS[COLORS.indexOf(color)]}`;
+    // 廠家系列名（和素·／柏林·）就係 series；冇嘅跟分類輪流派
+    const seriesMatch = it.supplierName.match(/\s([一-龥]{2,4})·/);
+    const series = seriesMatch ? seriesMatch[1] : SERIES[idx % SERIES.length];
 
-    out.push({
+    return {
       sku,
-      name: `${material.label}${cat.label} · ${form}`,
-      variant: color,
+      name: it.ownName,
+      variant: it.spec || '—',
       category: cat.label,
       categoryKey: cat.key,
-      series: pick(rng, SERIES),
-      supplier: pick(rng, SUPPLIERS),
-      supplierCode,
-      supplierName,
-      sourcingType,
+      series,
+      supplier: it.supplier,
+      supplierCode: it.supplierCode || `${it.supplier}-${String(n).padStart(3, '0')}`,
+      supplierName: it.supplierName,
+      packageStems: it.packages.length ? it.packages : [it.supplierCode || sku],
+      sourcingType: it.sourcingType,
       cost,
       price,
       status,
       stock,
-      updatedAt: new Date(TODAY_MS - Math.floor(between(rng, 0, 120)) * DAY)
-        .toISOString()
-        .slice(0, 10),
-    });
-  }
-  return out;
+      updatedAt: daysAgo(rng, 0, 120),
+    };
+  });
 }
 
 export const products = buildProducts();
-
-/** 一件貨拆幾多個包件，按分類；生成包件同採購用 */
-export const packagesPerUnit = (categoryKey: string) =>
-  CATEGORIES.find((c) => c.key === categoryKey)?.packages ?? 1;
+export const TOTAL_SKU = products.length;
 
 /** 儲定貨款：備貨表淨係入呢啲 */
 export const stockedProducts = products.filter((p) => p.sourcingType === 'stocked');
 
-export const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({
-  value: c.label,
-  label: c.label,
-}));
+/** 一件貨拆幾多個包件（由廠家發貨表嘅包件編碼數） */
+export const packagesPerUnit = (p: Product) => Math.max(1, p.packageStems.length);
+
+export const SUPPLIERS = [...new Set(products.map((p) => p.supplier))];
+
+export const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c.label, label: c.label }));
 
 export const PRODUCT_STATUS_META: Record<
   ProductStatus,

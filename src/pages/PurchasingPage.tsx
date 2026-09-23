@@ -36,6 +36,7 @@ import {
 } from '../data/ops';
 import type { PurchaseOrder, Requirement, RequirementStatus } from '../data/ops';
 import { colors } from '../theme';
+import { fmtDate } from '../utils/date';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
 import { FilterChip } from '../components/FilterChip';
@@ -43,6 +44,7 @@ import { downloadPurchaseSheet } from '../utils/purchaseSheet';
 import { ItemName, NameDisplaySwitch } from '../components/ItemName';
 import { DataTableCard } from '../components/DataTableCard';
 import { useTablePagination } from '../utils/useTablePagination';
+import { useMockLoading } from '../utils/useMockLoading';
 import { useT } from '../i18n';
 import type { MessageKey } from '../i18n';
 import { useDensity } from '../utils/useDensity';
@@ -98,7 +100,7 @@ export function PurchasingPage() {
         return (
           r.orderNo.toLowerCase().includes(kw) ||
           r.sku.toLowerCase().includes(kw) ||
-          r.customer.alias.includes(kw) ||
+          (r.customer?.alias.includes(kw) ?? false) ||
           (p?.name.toLowerCase().includes(kw) ?? false) ||
           (p?.supplierName.toLowerCase().includes(kw) ?? false)
         );
@@ -106,6 +108,7 @@ export function PurchasingPage() {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.orderNo.localeCompare(b.orderNo));
   }, [withStatus, suppliers, statuses, keyword]);
 
+  const loading = useMockLoading();
   const pagination = useTablePagination(rows.length);
 
   const filtered = suppliers.length > 0 || statuses.length !== 1 || statuses[0] !== 'open' || keyword !== '';
@@ -167,7 +170,7 @@ export function PurchasingPage() {
       width: wc(120),
       sorter: (a, b) => a.createdAt.localeCompare(b.createdAt),
       defaultSortOrder: 'ascend',
-      render: (d: string) => <Text type="secondary">{d}</Text>,
+      render: (d: string) => <Text type="secondary">{fmtDate(d)}</Text>,
     },
     {
       title: t('purchasing.col.customer'),
@@ -177,7 +180,7 @@ export function PurchasingPage() {
         isStockRequirement(r) ? (
           <Pill tone="muted">{t('purchasing.stockOrder')}</Pill>
         ) : (
-          <Text>{r.customer.alias} · {r.customer.district}</Text>
+          <Text>{r.customer?.alias} · {r.customer?.district}</Text>
         ),
     },
     {
@@ -312,7 +315,7 @@ export function PurchasingPage() {
                 <Flex vertical gap={8}>
                   <Flex justify="space-between" align="center">
                     <Text style={{ fontWeight: 600 }}>
-                      {isStockRequirement(r) ? t('purchasing.stockOrder') : `${r.orderNo} · ${r.customer.alias} · ${r.customer.district}`}
+                      {isStockRequirement(r) ? t('purchasing.stockOrder') : `${r.orderNo} · ${r.customer?.alias} · ${r.customer?.district}`}
                     </Text>
                     <Pill tone={m.tone} dot>{t(m.labelKey)}</Pill>
                   </Flex>
@@ -328,6 +331,7 @@ export function PurchasingPage() {
       }
     >
       <Table
+        loading={loading}
         rowKey="id"
         columns={columns}
         dataSource={rows}

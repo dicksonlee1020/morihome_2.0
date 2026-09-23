@@ -28,13 +28,11 @@ import {
   activityState,
   daysInHk,
   isEscalated,
-  lineStatus,
 } from '../domain/derive';
 import { DEMO_TODAY, today } from '../domain/clock';
 import type {
   ActivityKind,
   ActivityState,
-  LineStatus,
   TimeSlot,
 } from '../domain/types';
 import { colors, useIsMobile } from '../theme';
@@ -42,10 +40,13 @@ import { useT } from '../i18n';
 import { useAuth } from '../auth';
 import type { MessageKey, Translate } from '../i18n';
 import { Pill } from '../components/Pill';
+import { BUCKET_META } from '../data/buckets';
+import { orderBucket } from '../domain/derive';
 import { CardList } from '../components/CardList';
 import { FilterChip } from '../components/FilterChip';
 import { DataTableCard } from '../components/DataTableCard';
 import { useTablePagination } from '../utils/useTablePagination';
+import { useMockLoading } from '../utils/useMockLoading';
 import { useDensity } from '../utils/useDensity';
 import type { Tone } from '../utils/tones';
 
@@ -75,14 +76,6 @@ const STATE_TONE: Record<ActivityState, Tone> = {
   done: 'success',
 };
 
-const LINE_TONE: Record<LineStatus, Tone> = {
-  notProcured: 'muted',
-  inTransit: 'brand',
-  readyToSchedule: 'success',
-  partiallyDelivered: 'warning',
-  delivered: 'muted',
-};
-
 type Bucket = 'overdue' | 'today' | 'week' | 'later' | 'done';
 const BUCKETS: Bucket[] = ['overdue', 'today', 'week', 'later', 'done'];
 
@@ -90,10 +83,6 @@ const kindKey = (k: ActivityKind): MessageKey =>
   `followups.kind.${k}` as MessageKey;
 const stateKey = (s: ActivityState): MessageKey =>
   `followups.state.${s}` as MessageKey;
-const lineKey = (s: LineStatus): MessageKey =>
-  `followups.line.${s}` as MessageKey;
-const slotKey = (s: TimeSlot): MessageKey => `followups.slot.${s}` as MessageKey;
-
 /** Which bucket an activity falls in, from its derived state. */
 function bucketOf(row: FollowupRow): Exclude<Bucket, 'all'> {
   const state = activityState(row.activity);
@@ -104,6 +93,8 @@ function bucketOf(row: FollowupRow): Exclude<Bucket, 'all'> {
     ? 'later'
     : 'week';
 }
+
+const slotKey = (s: TimeSlot): MessageKey => `followups.slot.${s}` as MessageKey;
 
 export function MyFollowupsPage() {
   const { message } = App.useApp();
@@ -151,6 +142,7 @@ export function MyFollowupsPage() {
     });
   }, [rows, buckets, owners, keyword]);
 
+  const loading = useMockLoading();
   const pagination = useTablePagination(visible.length);
 
   /** Replace one row and drop the selection that referenced it. */
@@ -495,6 +487,7 @@ export function MyFollowupsPage() {
         }
       >
         <Table<FollowupRow>
+          loading={loading}
           rowKey={(r) => r.activity.id}
           columns={columns}
           dataSource={visible}
@@ -513,14 +506,15 @@ export function MyFollowupsPage() {
 
 /** Derived line progress plus the escalation flag (§4). */
 function ProgressCell({ row, t }: { row: FollowupRow; t: Translate }) {
-  const status = lineStatus(row.units);
+  // CLAUDE.md DoD：同訂單列表一套推導 bucket
+  const bucket = orderBucket(row.units, row.delivery);
   const days = daysInHk(row.units);
   const escalated = isEscalated(row.units, row.delivery);
 
   return (
     <Flex vertical gap={2} align="flex-start">
-      <Pill tone={LINE_TONE[status]} dot>
-        {t(lineKey(status))}
+      <Pill tone={BUCKET_META[bucket].tone} dot>
+        {t(BUCKET_META[bucket].labelKey)}
       </Pill>
       {days != null && (
         <Text

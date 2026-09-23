@@ -23,11 +23,26 @@
 
 ## 畫面驗收標準（Definition of Done）
 
+- **訂單列表嘅「狀態」欄 = 推導 bucket（未採購／備貨中／待約／已約／部分送達／已完成），同「我的跟進」用同一套。「待確認／已確認」等人手狀態鏈唔准出現喺任何畫面**（Q16 有答案之前連人手單概念都唔存在）
+- **供應商發貨表對數嘅 match key = 供應商訂單號（HB…）＋廠商品名／型號＋數量。唔准假設供應商文件會有我哋嘅內部包件編碼** —— 包件編碼係 match 成功後系統派嘅
 - 列表：inline edit、批量操作、一頁載 100+ 行唔卡
 - 「已約」揀日期時段唔跳頁；「打唔通」一撳自動排下次跟進
 - 司機畫面 mobile-first；所有畫面手機用得到（Ocean 硬性要求）
 - UI 文字一律行 string key（zh-Hant / zh-Hans），唔准 hardcode 中文喺 component 入面；語言係 per-user 設定
 - 深淺色兩套都要行（跟系統 + 手動鎖定）
+
+## UI 規範（Ocean 重視，逐條係硬規則）
+
+- 資料表：所有日期／金額／數量欄必須 sortable；每頁講明預設排序（訂單＝落單日期降序）
+- 日期格式全 app 一個 formatter：列表 `MM-DD`（跨年先 `YYYY-MM-DD`）、詳情 `YYYY年M月D日`；唔准 inline format
+- 一個 column 一件事：電話唔准同姓名夾欄；「逾期未送」等警示做行級紅點／chip，唔准塞入日期欄
+- scroll-x table：首欄 fixed left、操作 fixed right
+- 長文字欄一律 ellipsis + Tooltip；數字欄右對齊 + `font-variant-numeric: tabular-nums`
+- 高頻動作（安排送貨）做 row 直接掣；「⋮」只放低頻動作
+- status → colour 係單一 theme mapping，全 app 引用，唔准逐頁自己配色
+- 每個 table 有 loading skeleton 同 empty state
+- 手機（<768px）：主列表轉卡片式；密集模式喺手機停用；觸控目標 ≥48px
+- 品牌 token（森林綠 #3D5C3A、金 #B8943F）經 ConfigProvider theme 入，唔准散落 inline style
 
 ## Scope 界線
 

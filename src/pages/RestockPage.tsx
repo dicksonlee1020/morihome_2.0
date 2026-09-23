@@ -18,6 +18,7 @@ import { ShoppingCartOutlined } from '@ant-design/icons';
 import { stockedProducts } from '../data/catalog';
 import { createStockRequirements } from '../data/ops';
 import { colors } from '../theme';
+import { fmtDate } from '../utils/date';
 import { onHand, sellable } from '../types';
 import type { Product } from '../types';
 import { Pill } from '../components/Pill';
@@ -25,6 +26,7 @@ import { CardList } from '../components/CardList';
 import { FilterChip } from '../components/FilterChip';
 import { DataTableCard } from '../components/DataTableCard';
 import { useTablePagination } from '../utils/useTablePagination';
+import { useMockLoading } from '../utils/useMockLoading';
 import { ItemName, NameDisplaySwitch } from '../components/ItemName';
 import { useT } from '../i18n';
 import type { MessageKey } from '../i18n';
@@ -98,6 +100,7 @@ export function RestockPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reminders, keyword, safety]);
 
+  const loading = useMockLoading();
   const pagination = useTablePagination(rows.length);
 
   const stats = useMemo(() => {
@@ -207,7 +210,7 @@ export function RestockPage() {
       key: 'countedAt',
       width: wc(100),
       responsive: ['xxl'],
-      render: (_, p) => <Text type="secondary">{p.stock.countedAt}</Text>,
+      render: (_, p) => <Text type="secondary">{fmtDate(p.stock.countedAt)}</Text>,
     },
   ];
 
@@ -290,6 +293,7 @@ export function RestockPage() {
         }
       >
         <Table<Product>
+          loading={loading}
           rowKey="sku"
           columns={columns}
           dataSource={rows}

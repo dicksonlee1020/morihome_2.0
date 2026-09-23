@@ -30,11 +30,13 @@ import type { ThemeConfig } from 'antd';
  * ===============================================================*/
 
 export const colors = {
-  // 品牌 — 來源：Canva Brand Kit「mori home」
-  primary: '#506D53', // 主色：按鈕、連結、選中態、focus
-  primaryHover: '#425A45',
-  primarySubtle: '#EDF2EE', // 選中行底色、淡標籤
-  wood: '#A18064', // 木棕：圖示、分隔、裝飾 —— 禁止用喺內文（對比度 3.3:1，唔過 AA）
+  // 品牌 — 來源：CLAUDE.md UI 規範（2026-09-23）：森林綠 #3D5C3A、金 #B8943F。
+  // 舊值 #506D53 / #A18064 係 Canva Brand Kit 抽出嚟嘅，Logo 實際金色 #B7915D，
+  // 三者唔同 —— 以 CLAUDE.md 為準，等 Ocean 最後確認。
+  primary: '#3D5C3A', // 主色：按鈕、連結、選中態、focus（白底 7.6:1）
+  primaryHover: '#2F4A2D',
+  primarySubtle: '#E9EFE8', // 選中行底色、淡標籤
+  wood: '#B8943F', // 金：圖示、分隔、裝飾 —— 禁止用喺內文（白底 2.9:1，唔過 AA）
   warm: '#F3F2EE', // 暖米白：登入頁、空狀態等品牌感畫面
   sand: '#E4D0B5', // 沙色：次要面板
 
@@ -50,7 +52,7 @@ export const colors = {
   surface: '#FFFFFF',
 
   // 功能 — 新增
-  // ⚠️ success 特登用鮮綠，同品牌綠 #506D53 明度差夠大，
+  // ⚠️ success 特登用鮮綠，同品牌綠 #3D5C3A 明度差夠大，
   //    掃表格時「已送貨」同「主按鈕」分得出。詳見決策記錄。
   success: '#16A34A',
   successBg: '#E8F5EC',

@@ -27,7 +27,7 @@ import type {
  * reads inTransit even if another box already reached the customer, because
  * "三件齊晒先約得客" is the rule the screen has to enforce.
  */
-export function lineStatus(units: PackageUnit[]): LineStatus {
+export function lineStatus(units: Pick<PackageUnit, 'location'>[]): LineStatus {
   if (units.length === 0) return 'notProcured';
   if (units.some((u) => UPSTREAM.includes(u.location))) return 'inTransit';
   if (units.every((u) => IN_HK.includes(u.location))) return 'readyToSchedule';
@@ -84,7 +84,7 @@ export function sellableQty(units: PackageUnit[]): number {
 export const ESCALATION_DAYS_DEFAULT = 14;
 
 /** Longest time any unit of the line has been sitting in Hong Kong. */
-export function daysInHk(units: PackageUnit[]): number | null {
+export function daysInHk(units: Pick<PackageUnit, 'location' | 'arrivedAt'>[]): number | null {
   const arrivals = units
     .filter((u) => IN_HK.includes(u.location) && u.arrivedAt)
     .map((u) => today().diff(dayjs(u.arrivedAt!).startOf('day'), 'day'));
@@ -104,4 +104,50 @@ export function isEscalated(
   if (delivery?.scheduledDate) return false;
   const days = daysInHk(units);
   return days != null && days >= thresholdDays;
+}
+
+/* ----------------------------------------------------------- order bucket */
+
+/**
+ * CLAUDE.md DoD: the order list's status column IS this bucket, shared with
+ * 我的跟進. Six values, all derived — no manual 待確認/已確認 chain exists.
+ *
+ *   未採購   no PackageUnit on any line (requirement not yet ordered)
+ *   備貨中   any unit still at supplier / CN warehouse / in transit
+ *   待約     all units in HK, no scheduledDate
+ *   已約     all units in HK, scheduledDate set
+ *   部分送達 some units with the customer
+ *   已完成   every unit with the customer
+ */
+export type OrderBucket =
+  | 'notProcured'
+  | 'preparing'
+  | 'toSchedule'
+  | 'scheduled'
+  | 'partiallyDelivered'
+  | 'completed';
+
+export const ORDER_BUCKETS: OrderBucket[] = [
+  'notProcured',
+  'preparing',
+  'toSchedule',
+  'scheduled',
+  'partiallyDelivered',
+  'completed',
+];
+
+export function orderBucket(units: Pick<PackageUnit, 'location'>[], delivery: Pick<DeliveryOrder, 'scheduledDate'> | null): OrderBucket {
+  const status = lineStatus(units);
+  switch (status) {
+    case 'notProcured':
+      return 'notProcured';
+    case 'inTransit':
+      return 'preparing';
+    case 'partiallyDelivered':
+      return 'partiallyDelivered';
+    case 'delivered':
+      return 'completed';
+    case 'readyToSchedule':
+      return delivery?.scheduledDate ? 'scheduled' : 'toSchedule';
+  }
 }

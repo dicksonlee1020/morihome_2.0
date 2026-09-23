@@ -42,10 +42,11 @@ interface StoredUser extends StaffUser {
 
 const users: StoredUser[] = [
   { id: 'u-ocean', email: 'ocean@morihome.example', displayName: 'Ocean', role: 'owner', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-21T09:12:00+08:00', password: DEMO_PASSWORD },
-  { id: 'u-kengi', email: 'kengi@morihome.example', displayName: 'Kengi', role: 'owner', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-22T08:40:00+08:00', password: DEMO_PASSWORD },
-  { id: 'u-alex', email: 'alex@morihome.example', displayName: 'Alex', role: 'procurement', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-22T09:05:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-jenny', email: 'jenny@morihome.example', displayName: 'Jenny', role: 'owner', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-20T15:10:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-kengi', email: 'kengi@morihome.example', displayName: 'Kengi', role: 'sysadmin', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-22T08:40:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-alex', email: 'alex@morihome.example', displayName: 'Alex', role: 'ops', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-22T09:05:00+08:00', password: DEMO_PASSWORD },
   { id: 'u-manman', email: 'manman@morihome.example', displayName: '雯雯', role: 'finance', status: 'active', locale: 'zh-Hans', mustChangePassword: false, lastLoginAt: '2026-09-22T09:30:00+08:00', password: DEMO_PASSWORD },
-  { id: 'u-yumi', email: 'yumi@morihome.example', displayName: 'Yumi', role: 'merchandising', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-21T17:50:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-yumi', email: 'yumi@morihome.example', displayName: 'Yumi', role: 'content', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-21T17:50:00+08:00', password: DEMO_PASSWORD },
   { id: 'u-wilson', email: 'wilson@morihome.example', displayName: 'Wilson', role: 'sales', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-22T10:02:00+08:00', password: DEMO_PASSWORD },
   { id: 'u-steve', email: 'steve@morihome.example', displayName: 'Steve', role: 'sales', status: 'active', locale: 'zh-Hant', mustChangePassword: true, lastLoginAt: null, password: DEMO_PASSWORD },
   { id: 'u-hang', email: 'hang@morihome.example', displayName: '阿桁', role: 'driver', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-22T07:55:00+08:00', password: DEMO_PASSWORD },

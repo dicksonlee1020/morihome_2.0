@@ -76,6 +76,8 @@ export interface Product {
    */
   supplierCode: string;
   supplierName: string;
+  /** 廠家發貨表上一件貨拆成幾多個包件嘅編碼字頭（床 = 床架 + 床頭 + 鋪板） */
+  packageStems: string[];
   sourcingType: SourcingType;
   cost: number;
   price: number;

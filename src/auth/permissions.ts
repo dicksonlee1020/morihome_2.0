@@ -1,10 +1,10 @@
-import type { StaffRole } from './types';
+import { can } from '../config/permissions';
+import type { Module, StaffRole } from '../config/permissions';
 
 /**
- * Which roles may open which screen. SPEC REF §6: "角色六個，預設拒絕" — a
- * screen missing from this map is closed to everyone, and a role missing from
- * a screen's list cannot open it. The server enforces the same table; this copy
- * only decides what the navigation shows.
+ * Screens → registry modules (docs/design/rbac-spec.md §9.3). The navigation
+ * shows a screen when the role may `view` its module; the server enforces the
+ * same registry on every route, so this is display logic only.
  */
 export type PageKey =
   | 'followups'
@@ -18,25 +18,24 @@ export type PageKey =
   | 'delivery'
   | 'settings';
 
-export const PAGE_ROLES: Record<PageKey, StaffRole[]> = {
-  followups: ['owner', 'procurement'],
-  orders: ['owner', 'procurement', 'finance', 'sales'],
-  customers: ['owner', 'sales'],
-  products: ['owner', 'procurement', 'merchandising', 'sales'],
-  inventory: ['owner', 'procurement', 'merchandising'],
-  restock: ['owner', 'procurement', 'merchandising'],
-  purchasing: ['owner', 'procurement'],
-  waiting: ['owner', 'procurement'],
-  // §6: a driver sees only their own deliveries for the day.
-  delivery: ['owner', 'procurement', 'driver'],
-  settings: ['owner'],
+export const PAGE_MODULE: Record<PageKey, Module> = {
+  followups: 'followups',
+  orders: 'orders',
+  customers: 'customers',
+  products: 'products',
+  inventory: 'warehouse',
+  restock: 'restock',
+  purchasing: 'purchasing',
+  waiting: 'purchasing',
+  delivery: 'delivery',
+  settings: 'settings',
 };
 
 export const canOpen = (role: StaffRole, page: PageKey): boolean =>
-  PAGE_ROLES[page]?.includes(role) ?? false;
+  can(role, PAGE_MODULE[page], 'view');
 
 /** The screen a role lands on after signing in: its first permitted one. */
 export function landingPage(role: StaffRole): PageKey | null {
-  const order = Object.keys(PAGE_ROLES) as PageKey[];
+  const order = Object.keys(PAGE_MODULE) as PageKey[];
   return order.find((page) => canOpen(role, page)) ?? null;
 }

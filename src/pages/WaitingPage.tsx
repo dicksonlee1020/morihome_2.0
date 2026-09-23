@@ -30,11 +30,13 @@ import {
 import type { Pkg, ShipmentResult, WaitingGroup } from '../data/ops';
 import type { LocationKey } from '../domain/types';
 import { colors, useIsMobile } from '../theme';
+import { cmpDate, fmtDate } from '../utils/date';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
 import { FilterChip } from '../components/FilterChip';
 import { DataTableCard } from '../components/DataTableCard';
 import { useTablePagination } from '../utils/useTablePagination';
+import { useMockLoading } from '../utils/useMockLoading';
 import { ItemName, NameDisplaySwitch } from '../components/ItemName';
 import { useT } from '../i18n';
 import type { MessageKey } from '../i18n';
@@ -86,13 +88,14 @@ export function WaitingPage() {
             l.sku.toLowerCase().includes(kw) ||
             (p?.name.toLowerCase().includes(kw) ?? false) ||
             (p?.supplierName.toLowerCase().includes(kw) ?? false) ||
-            l.packages.some((k) => k.packageCode.toLowerCase().includes(kw))
+            l.packages.some((k) => (k.packageCode ?? '').toLowerCase().includes(kw))
           );
         })
       );
     });
   }, [groups, states, keyword]);
 
+  const loading = useMockLoading();
   const pagination = useTablePagination(rows.length);
 
   const stats = useMemo(() => {
@@ -152,6 +155,8 @@ export function WaitingPage() {
       title: t('waiting.col.order'),
       dataIndex: 'orderNo',
       width: wc(120),
+      fixed: 'left',
+      sorter: (a, b) => a.orderNo.localeCompare(b.orderNo),
       render: (no: string) => <Text style={{ fontWeight: 500 }}>{no}</Text>,
     },
     {
@@ -189,15 +194,16 @@ export function WaitingPage() {
       dataIndex: 'orderedAt',
       width: wc(110),
       sorter: (a, b) => a.orderedAt.localeCompare(b.orderedAt),
-      render: (d: string) => <Text type="secondary">{d}</Text>,
+      render: (d: string) => <Text type="secondary">{fmtDate(d)}</Text>,
     },
     {
       title: t('waiting.col.eta'),
       dataIndex: 'estimatedReady',
       width: wc(110),
+      sorter: (a, b) => cmpDate(a.estimatedReady, b.estimatedReady),
       render: (d: string | null, g) => {
         const late = !g.allShipped && d && d < '2026-09-22';
-        return <Text style={{ color: late ? colors.error : colors.textSecondary, fontWeight: late ? 500 : undefined }}>{d ?? '—'}</Text>;
+        return <Text style={{ color: late ? colors.error : colors.textSecondary, fontWeight: late ? 500 : undefined }}>{fmtDate(d)}</Text>;
       },
     },
     {
@@ -216,7 +222,7 @@ export function WaitingPage() {
         const m = LOCATION_META[k.location] ?? LOCATION_META.supplier!;
         return (
           <Pill key={k.id} tone={m.tone} dot>
-            {k.packageCode} · {t(m.labelKey)}
+            {k.packageCode ?? `${k.stem} · ${t('waiting.uncoded')}`} · {t(m.labelKey)}
             {k.deliveryNoteNo && ` · ${k.deliveryNoteNo}`}
           </Pill>
         );
@@ -320,6 +326,7 @@ export function WaitingPage() {
         }
       >
         <Table<WaitingGroup>
+          loading={loading}
           rowKey="orderNo"
           columns={columns}
           dataSource={rows}
@@ -344,27 +351,29 @@ export function WaitingPage() {
           <Flex vertical gap={12} style={{ marginTop: 8 }}>
             <Text>{t('waiting.upload.summary', { matched: result.matched.length, unmatched: result.unmatched.length })}</Text>
             {result.matched.length > 0 && (
-              <Flex vertical gap={4}>
+              <Flex vertical gap={6}>
                 <Text type="secondary" style={{ fontSize: 13 }}>{t('waiting.upload.matched')}</Text>
-                <Flex gap={6} wrap>
-                  {result.matched.map(({ pkg }) => (
-                    <Pill key={pkg.id} tone="success" dot>
-                      {pkg.packageCode} · {pkg.orderNo}
-                    </Pill>
-                  ))}
-                </Flex>
+                {result.matched.map((m, i) => (
+                  <Flex key={`${m.row.supplierOrderNo}-${m.product.sku}-${i}`} align="center" justify="space-between" gap={12}>
+                    <ItemName product={m.product} compact />
+                    <Flex gap={6} align="center" wrap style={{ justifyContent: 'flex-end' }}>
+                      <Text type="secondary" style={{ fontSize: 13 }}>{m.row.supplierOrderNo} · {m.packages[0]?.orderNo}</Text>
+                      <Pill tone="success" dot>{t('waiting.upload.units', { n: m.row.qty - m.short, pkgs: m.packages.length })}</Pill>
+                      {m.short > 0 && <Pill tone="warning">{t('waiting.upload.short', { n: m.short })}</Pill>}
+                    </Flex>
+                  </Flex>
+                ))}
               </Flex>
             )}
             {result.unmatched.length > 0 && (
-              <Flex vertical gap={4}>
+              <Flex vertical gap={6}>
                 <Text type="secondary" style={{ fontSize: 13 }}>{t('waiting.upload.unmatched')}</Text>
-                <Flex gap={6} wrap>
-                  {result.unmatched.map((u, i) => (
-                    <Pill key={`${u.row.packageCode}-${i}`} tone="error" dot>
-                      {u.row.packageCode} · {t(u.reason === 'notFound' ? 'waiting.upload.notFound' : 'waiting.upload.alreadyShipped')}
-                    </Pill>
-                  ))}
-                </Flex>
+                {result.unmatched.map((u, i) => (
+                  <Flex key={`${u.row.supplierOrderNo}-${i}`} align="center" justify="space-between" gap={12}>
+                    <Text ellipsis={{ tooltip: true }} style={{ minWidth: 0 }}>{u.row.supplierOrderNo} · {u.row.supplierCode} {u.row.supplierName} × {u.row.qty}</Text>
+                    <Pill tone="error" dot>{t(`waiting.upload.reason.${u.reason}` as MessageKey)}</Pill>
+                  </Flex>
+                ))}
               </Flex>
             )}
             <Text type="secondary" style={{ fontSize: 13 }}>{t('waiting.upload.note')}</Text>

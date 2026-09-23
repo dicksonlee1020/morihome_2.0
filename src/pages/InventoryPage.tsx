@@ -20,11 +20,13 @@ import { daysSince } from '../domain/clock';
 import { ESCALATION_DAYS_DEFAULT } from '../domain/derive';
 import type { LocationKey } from '../domain/types';
 import { colors } from '../theme';
+import { fmtDate } from '../utils/date';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
 import { FilterChip } from '../components/FilterChip';
 import { DataTableCard } from '../components/DataTableCard';
 import { useTablePagination } from '../utils/useTablePagination';
+import { useMockLoading } from '../utils/useMockLoading';
 import { ItemName, NameDisplaySwitch } from '../components/ItemName';
 import { useT } from '../i18n';
 import type { MessageKey } from '../i18n';
@@ -57,6 +59,8 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
   const [selected, setSelected] = useState<React.Key[]>([]);
 
   const all = useMemo(() => hkPackages(ops), [ops]);
+  const orderByNo = useMemo(() => new Map(ops.orders.map((o) => [o.orderNo, o])), [ops.orders]);
+  const customerOf = (orderNo: string | null) => (orderNo ? orderByNo.get(orderNo)?.customer : undefined);
 
   const rows = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
@@ -67,10 +71,10 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
         if (!kw) return true;
         const p = productOf(k.sku);
         return (
-          k.packageCode.toLowerCase().includes(kw) ||
+          (k.packageCode ?? '').toLowerCase().includes(kw) ||
           k.sku.toLowerCase().includes(kw) ||
           (k.orderNo?.toLowerCase().includes(kw) ?? false) ||
-          (k.customer?.alias.includes(kw) ?? false) ||
+          (customerOf(k.orderNo)?.alias.includes(kw) ?? false) ||
           (p?.name.toLowerCase().includes(kw) ?? false) ||
           (p?.supplierName.toLowerCase().includes(kw) ?? false)
         );
@@ -80,8 +84,10 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
         if (!!a.orderNo !== !!b.orderNo) return a.orderNo ? -1 : 1;
         return (a.arrivedAt ?? '').localeCompare(b.arrivedAt ?? '');
       });
-  }, [all, locs, kinds, keyword]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [all, locs, kinds, keyword, orderByNo]);
 
+  const loading = useMockLoading();
   const pagination = useTablePagination(rows.length);
 
   const stats = useMemo(() => {
@@ -106,7 +112,7 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
           {days == null ? '—' : t('inventory.days', { n: days })}
           {hot && ` · ${t('inventory.escalated')}`}
         </Text>
-        <Text type="secondary" style={{ fontSize: 13 }}>{k.arrivedAt}</Text>
+        <Text type="secondary" style={{ fontSize: 13 }}>{fmtDate(k.arrivedAt)}</Text>
       </Flex>
     );
   };
@@ -115,7 +121,7 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
     k.orderNo ? (
       <Flex vertical>
         <Text style={{ fontWeight: 500 }}>{k.orderNo}</Text>
-        <Text type="secondary" style={{ fontSize: 13 }}>{k.customer?.alias} · {k.customer?.district}</Text>
+        <Text type="secondary" style={{ fontSize: 13 }}>{customerOf(k.orderNo)?.alias} · {customerOf(k.orderNo)?.district}</Text>
       </Flex>
     ) : (
       <Pill tone="muted">{t('inventory.kind.stock')}</Pill>
@@ -127,7 +133,8 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
       dataIndex: 'packageCode',
       width: wc(150),
       fixed: 'left',
-      render: (c: string) => <Text style={{ fontWeight: 500, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }}>{c}</Text>,
+      sorter: (a, b) => (a.packageCode ?? '').localeCompare(b.packageCode ?? ''),
+      render: (c: string | null) => <Text style={{ fontWeight: 500, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }}>{c ?? t('inventory.uncoded')}</Text>,
     },
     {
       title: t('inventory.col.item'),
@@ -157,7 +164,7 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
       dataIndex: 'deliveryNoteNo',
       width: wc(150),
       responsive: ['xl'],
-      render: (n: string | null) => <Text type="secondary">{n ?? '—'}</Text>,
+      render: (n: string | null, k) => <Text type="secondary" ellipsis={{ tooltip: k.logisticsNo ?? undefined }}>{n ?? '—'}</Text>,
     },
   ];
 
@@ -240,7 +247,7 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
                 <Card size="small" styles={{ body: { padding: '12px 16px' } }}>
                   <Flex vertical gap={8}>
                     <Flex justify="space-between" align="center" gap={8}>
-                      <Text style={{ fontWeight: 600, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }}>{k.packageCode}</Text>
+                      <Text style={{ fontWeight: 600, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }}>{k.packageCode ?? t('inventory.uncoded')}</Text>
                       <Pill tone={k.location === 'showroom' ? 'brand' : 'muted'}>{t(LOC_LABEL[k.location] ?? 'inventory.loc.hkWarehouse')}</Pill>
                     </Flex>
                     {p && <ItemName product={p} thumb />}
@@ -256,6 +263,7 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
         }
       >
         <Table<Pkg>
+          loading={loading}
           rowKey="id"
           columns={columns}
           dataSource={rows}

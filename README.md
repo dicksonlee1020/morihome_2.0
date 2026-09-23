@@ -12,8 +12,26 @@ Morihome ERP 前端，React + TypeScript + Vite + Ant Design 5/6，全套 UI 跟
 跟住一行「篩選後幾多項」（有揀行就變批量操作列），然後 table + pagination（每頁 15 / 50 / 100，全站記住）。
 手機版換卡片列表。
 
-設計 spec 喺 `docs/design/erp-redesign-spec.md`，工作守則喺 `CLAUDE.md` ——
-做 feature 之前先讀相關章節。
+設計 spec 喺 `docs/design/erp-redesign-spec.md`（v0.2，2026-09-23）、角色權限喺 `docs/design/rbac-spec.md`，
+工作守則喺 `CLAUDE.md` —— 做 feature 之前先讀相關章節。
+
+## 2026-09-23 跟三份 spec 改咗嘅嘢
+
+- **訂單「狀態」= 推導 bucket**（未採購 / 備貨中 / 待約 / 已約 / 部分送達 / 已完成，`domain/derive.ts` `orderBucket`），
+  同「我的跟進」用同一套（`data/buckets.ts` 一個 mapping）。舊嘅 待確認 / 已確認 人手狀態鏈已刪。
+- **發貨表對數 match key = HB 單號 + 廠商型號/品名 + 數量**（`ops.matchShipment`）；包件編碼係對到之後系統先派，
+  廠未發貨嘅包件顯示「未派碼」。對唔到分四種原因交人手；廠報多咗件數會標「少發 n 件」。
+- **RBAC**：`src/config/permissions.ts` 一份 registry（MODULES × ACTIONS × ROLES，§9.3 矩陣），導覽用 `view`、
+  掣用 `edit / execute / export`；FIELD_CLASS `COST`（成本、毛利只有 owner / finance 見）、`CUSTOMER_PII`。
+  七個角色：owner（Ocean、Jenny）、ops（Alex）、finance（雯雯）、sales（Wilson、Steve）、driver（阿桁）、content（Yumi）、sysadmin（Kengi）。
+  司機只見今日已約嘅單（TODO Q14：未有派車資料，「派畀本人」暫用「今日已約」代替）。
+- **UI 規範**：一個日期 formatter（`utils/date.ts`：列表 MM-DD、詳情 YYYY年M月D日）；電話獨立一欄；
+  「逾期未送」「在港 ≥ 14 日未約」係行級 chip；首欄 fixed left、操作 fixed right；數字欄 tabular-nums；每個 table 有 loading skeleton。
+- **品牌 token** 改為 CLAUDE.md 嘅森林綠 #3D5C3A、金 #B8943F（theme.ts 有註明三個來源唔同，等 Ocean 確認）。
+- **Mock data 跟 Alex 份營運 Excel**：`scripts/build-fixtures.mjs` 由 Excel 抽 681 件廠家目錄（源氏型號 + 廠家品名 + 規格 +
+  人民幣價 + 包件拆法、永偉 / 小敏 訂造款、床褥品牌）出 `src/data/fixtures/items.json`；出街名 = 簡轉繁去型號。
+  訂單 `PO3562` + 地區（地區分布跟 Excel）、批次 `0903单`、`HB…` / `JH…` 單號、`中通快递 3023…` 物流、
+  包件 `Y09BB0025150-3562` + `PF150200001-3562`。Excel 本身唔入 repo；客人一律化名 + 化名電話。
 
 ## 行起佢
 
@@ -59,8 +77,11 @@ src/
   data/followups.ts           跟進 fixture（化名 + 地區，冇真實客戶資料）
   pages/MyFollowupsPage.tsx   我的跟進（spec §6）
   types.ts                    Order / Product / Stock 型別同計算
-  data/orders.ts              示範訂單 + 狀態→顏色對照表
-  data/catalog.ts             5,241 個 SKU 生成器（固定 seed；每件有廠家型號 + 廠家名 + 來源類型）
+  data/catalog.ts             由 fixtures/items.json 砌產品（681 件，廠家型號 / 品名 / 包件拆法）
+  data/fixtures/items.json    Alex Excel 抽出嘅廠家目錄（scripts/build-fixtures.mjs 生成）
+  data/buckets.ts             訂單 bucket → 顏色 / 文字（全 app 唯一 mapping）
+  config/permissions.ts       RBAC registry（§9.2–9.5）
+  utils/date.ts               全 app 唯一日期 formatter
   data/ops.ts                 採購需求 / 採購單 / 包件 / StockMove 嘅示範資料 + store（唯一寫 location 嘅地方係 completeMove）
   data/ops.test.ts            採購、訂貨確認、發貨表對數嘅測試（7 個）
   components/ItemName.tsx     雙名顯示（出街名 ↔ 廠商名）+ 縮圖 + 切換掣
@@ -71,7 +92,6 @@ src/
   utils/nameDisplay.ts        per-user 名稱顯示設定（localStorage 頂住）
   components/Pill.tsx         狀態藥丸（顏色只收 theme 傳入）
   components/CardList.tsx     手機版卡片列表 + 分頁
-  components/OrderCards.tsx   手機版訂單卡
   pages/OrdersPage.tsx        訂單（舒適）
   pages/PurchasingPage.tsx    採購：需求按供應商 group、生成採購表、上載訂貨確認
   pages/WaitingPage.tsx       庫存等候：按訂單收埋、發貨進度、上載發貨表自動對數

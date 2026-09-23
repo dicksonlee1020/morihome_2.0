@@ -1,30 +1,18 @@
 import type { Locale } from '../i18n';
+import type { StaffRole } from '../config/permissions';
+
+export type { StaffRole } from '../config/permissions';
+export { ROLES as STAFF_ROLES } from '../config/permissions';
 
 /**
  * Staff accounts and sessions.
- * SPEC REF §6: six roles, permissions default to deny. §7: Google Workspace
- * SSO, deactivating a leaver's account cuts them off everywhere at once.
+ * SPEC REF rbac-spec.md §9.1: User ↔ Employee one-to-one, seven roles from the
+ * shared registry, permissions default to deny, no per-user override.
+ * §7 / Q19: Google + email-password both kept until Ocean decides.
  *
  * Accounts are created by an administrator; there is no self-registration and
  * a role is never taken from anything the client sends.
  */
-
-export type StaffRole =
-  | 'owner'
-  | 'procurement'
-  | 'finance'
-  | 'sales'
-  | 'driver'
-  | 'merchandising';
-
-export const STAFF_ROLES: StaffRole[] = [
-  'owner',
-  'procurement',
-  'finance',
-  'sales',
-  'driver',
-  'merchandising',
-];
 
 export type AccountStatus = 'active' | 'inactive';
 

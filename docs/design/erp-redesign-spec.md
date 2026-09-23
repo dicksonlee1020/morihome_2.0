@@ -17,14 +17,15 @@
 ## 2. Data Model（重寫範圍）
 
 ### 2.1 銷售擴充（喺現有 Order 上加）
-- `SalesOrder`: + `purpose`（客單/陳列/存貨/自取/售後補件/贈品）、+ `customerRequestedDate`（date，可空）、+ `customerRequestedNote`（自由文字，如「星期六日先收」）、+ `deliveryStatus`（推導）、+ `procureStatus`（推導）
+- `SalesOrder`: + `purpose`（客單/陳列/存貨/自取/售後補件/贈品）、+ `channel`（網店/門市/WhatsApp/電話 —— 待 Q16 定案）、+ `customerRequestedDate`（date，可空）、+ `customerRequestedNote`（自由文字，如「星期六日先收」）、+ `deliveryStatus`（推導）、+ `procureStatus`（推導）
 - `Payment`: 每筆收款一行 —— `kind`（訂金/尾數/附加費）、`amount`、`method`（FK PaymentMethod）、`paidAt`、`reconStatus`（推導）
 - `PaymentMethod`（設定表）: `name`（ypay/FPS/現金/支票/PayMe/Shopify Payments）、`statementSource`、`feeRate`
 - `Surcharge`: `kind`（樓梯/偏遠/棄置/回倉/上牆）、`amount`
 
 ### 2.2 商品主檔擴充
 - `Variant`: + `sourcingType`（儲定貨/落單訂/訂造）、+ `safetyStock`（儲定貨適用）
-- **內部編號永不變**；`SupplierProduct` 存供應商編號 + `formerCodes[]` 歷史
+- **內部編號永不變**；`SupplierProduct` 存供應商編號 + `supplierName`（廠商品名）+ `formerCodes[]` 歷史
+- **雙名顯示**（Ocean 2026-09-23）：出街名 ↔ 廠商名對照，兩邊都掛產品圖；全域一個 switch 揀顯示邊套名（per-user 記住）
 - `PackageSpec`（沿用現有 packagingBreakdown）: `packageCode`、L/W/H、weight、`volume`（推導）
 - `CustomItem`（訂造品）: `internalCode` = `C-{訂單號}-{序號}`、`spec`（尺寸/木材/飾面）、永不上架 Shopify、FK OrderLine
 - `CostPrice`: `supplierPrice_CNY`、`fxRate`、`effectiveFrom`
@@ -33,6 +34,12 @@
 - `ProcurementRequirement`: 由訂單行自動產生；`sourcing`（用存貨/訂新貨，系統按可售建議）、`status`
 - `PurchaseOrder`: `batchNo`（如 0908單）、`supplierOrderNo`（HB…）、`orderedAt`、`estimatedReady`
 - `SupplierShipment`: `deliveryNoteNo`（JH…）、`shippedAt`
+- **供應商文件對數**（Ocean 2026-09-23，新需求）：
+  - `SupplierConfirmation`：落單後供應商回訂貨確認 → upload（圖片/Excel/PDF，見 Q18）→ 對應 PurchaseOrder 自動標記「已確認」
+  - `ShipmentStatement`：供應商定期 send 發貨表（未發貨/已發貨兩份）→ upload → 自動 match 採購行 → 狀態自動轉（「自動著燈」）；match 唔到先交人手
+  - **Match key 規則**：供應商文件只會有佢哋自己嘅單號／品名 —— match 用 HB 單號＋廠商品名/型號＋數量（`SupplierProduct.supplierName` 就係為此而存在）；我哋嘅包件編碼係 match 成功後系統派發，唔可以要求供應商文件提供（實際欄位待 Q17）
+  - 採購需求列表按供應商 filter/group，每供應商生成一份採購表
+- UI：在途/等候列表按訂單 collapse，展開先見貨品；行右側顯示「已發 n/總數」進度
 
 ### 2.4 庫存移動（核心）
 - `Location`: usage（supplier/internal/transit/customer/loss）；seed：供應商、大陸倉、過境中、香港倉、陳列室、客人、退貨區、盤虧
@@ -49,6 +56,8 @@
 - `DeliveryAttempt`: `seq`、`result`（成功/失敗/改期）、`failReason`、`signaturePhoto`
 
 ### 2.6 財務對數
+
+> **完整模組 spec 見 `docs/design/finance-recon-spec.md`**（雯雯工作流、四流水×六收款方式、配對引擎四個 pass、憑證要求、畫面、Q20–Q23）。以下只係摘要。
 - `ReconciliationRule`（**資料，唔係 code**，財務自行調）: `statementSource`、`amountTolerance`、`dateToleranceDays`、`descPattern`、`enabled`
 - `BankTransaction`（四條流水：銀行/ypay/PayMe/Shopify payout）、`ReconciliationMatch`
 - `SupplierInvoice`: OCR `parsed`（唯讀）+ `items`（可改）+ `editHistory`；`Remittance`（XTransfer，一筆匯款勾多張 expense）
@@ -77,6 +86,9 @@ lineStatus(orderLine):
 orderDeliveryStatus = min(lineStatus)；有已送達又有未送 → 部分送達
 activityState: doneAt→已完成; due<today→逾期; due=today→今日; else→計劃中
 可售(variant) = 在港(HK/陳列室) 且 orderLine 為空 嘅 PackageUnit 數
+  # UI 註（Ocean 2026-09-23）：三數字唔做通用庫存頁 —— 抽出做「備貨表」，
+  # 只列 sourcingType=儲定貨 嘅款 + 補貨提醒。引擎照留：採購「用存貨/訂新貨」
+  # 建議同備貨提醒都靠佢計，收起嘅係頁面，唔係推導。
 escalation: 可安排送貨 且 未約 且 在港日數 ≥ 門檻(預設14, 設定值) → 通知老闆 + 全景標紅
 ```
 
@@ -105,7 +117,7 @@ escalation: 可安排送貨 且 未約 且 在港日數 ≥ 門檻(預設14, 設
 - **儀表板**（老闆）：數字可點入，唔要趨勢圖
 - 查閱層：訂單（詳情一頁睇晒）、待送貨報表、採購、倉庫（收貨驗貨/在庫包件/庫存三數字/移動紀錄）、商品、設定
 
-角色六個，預設拒絕：老闆(全部)、採購物流、財務(含成本毛利)、銷售客服、司機(**只限當日自己嘅單，冇客人全名**)、上架美術。
+角色與權限完整設計見 **`docs/design/rbac-spec.md`**（章節編號 9.1–9.9，供 prompt 引用）：7 個角色（+sysadmin）、ROLE_MATRIX、scope／field-class、ApprovalRule、audit、migration 報告。原則：預設拒絕；矩陣管 view/edit/execute/export，**審批一律由 ApprovalRule 設定表管**；司機只限派畀本人＋當日嘅單。
 
 ## 7. 非功能要求
 
@@ -113,7 +125,7 @@ escalation: 可安排送貨 且 未約 且 在港日數 ≥ 門檻(預設14, 設
 - i18n：string key（zh-Hant base + zh-Hans），per-user 語言設定；資料唔翻譯
 - 深淺色：跟系統 + 手動鎖定
 - 列表效能：100+ 行 inline edit 唔卡（rule #6 驗收）
-- Google Workspace SSO 登入；離職停帳戶即停晒
+- 登入方式待定（Q19）：現階段原型保留「Google ＋ 電郵密碼」雙軌；設計立場傾向 Google Workspace only（冇獨立密碼可外洩、離職停帳戶即停晒），由 Ocean 拍板
 
 ## 8. 上線前置（安全）
 
@@ -138,6 +150,10 @@ uploads 加 auth、輪換 repo 內憑證、.env 出 repo、admin 改離預設密
 | Q13 | 訂造品佔訂單比例 | Ocean/銷售 |
 | Q14 | 車隊實況（幾多車/司機/時段/載量單位） | Alex/Ocean |
 | Q15 | 「旺角門市」真定假 | Dickson |
+| Q16 | 落單入口：全部訂單經 Shopify（含 POS）入，定係 ERP 要自己收 WhatsApp／電話單？「新增訂單」功能做唔做？ | Ocean/銷售 |
+| Q17 | 供應商發貨表格式係咪逐家唔同？邊幾家有？（決定對數 parser 做法） | Alex |
+| Q18 | 訂貨確認文件形式（圖片/Excel/PDF）同接收渠道 | Alex |
+| Q19 | 登入方式：Google Workspace only，定係 Google＋密碼雙軌？（雙軌要養密碼重設流程） | Ocean |
 
 ## 10. 舊 → 新 對照（migration 參考）
 

@@ -27,6 +27,7 @@ import {
   products as catalog,
 } from '../data/catalog';
 import { colors } from '../theme';
+import { fmtDate } from '../utils/date';
 import { amount, money, percent } from '../utils/format';
 import { margin, sellable, stockState } from '../types';
 import type { Product, ProductStatus, SourcingType } from '../types';
@@ -35,8 +36,11 @@ import { CardList } from '../components/CardList';
 import { FilterChip } from '../components/FilterChip';
 import { DataTableCard } from '../components/DataTableCard';
 import { useTablePagination } from '../utils/useTablePagination';
+import { useMockLoading } from '../utils/useMockLoading';
 import { ItemName, NameDisplaySwitch } from '../components/ItemName';
 import { useT } from '../i18n';
+import { useAuth } from '../auth';
+import { canSee } from '../config/permissions';
 import type { MessageKey } from '../i18n';
 import { useDensity } from '../utils/useDensity';
 import type { Tone } from '../utils/tones';
@@ -56,6 +60,9 @@ export function ProductsPage() {
   const { message } = App.useApp();
   const t = useT();
   const { w } = useDensity();
+  const { user } = useAuth();
+  // §9.5 FIELD_CLASS COST：成本、毛利只有 owner / finance 見到；server 序列化層剝除，呢度只係收埋欄
+  const showCost = canSee(user?.role ?? 'content', 'COST');
 
   const [statuses, setStatuses] = useState<ProductStatus[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -83,6 +90,7 @@ export function ProductsPage() {
     });
   }, [statuses, categories, seriesSel, keyword, stockedOnly]);
 
+  const loading = useMockLoading();
   const pagination = useTablePagination(rows.length);
 
   const stats = useMemo(() => {
@@ -136,14 +144,14 @@ export function ProductsPage() {
         return <Pill tone={m.tone}>{t(m.labelKey)}</Pill>;
       },
     },
-    {
+    ...((showCost ? [{
       title: t('products.col.cost'),
       dataIndex: 'cost',
       width: w(90),
       align: 'right',
       sorter: (a, b) => a.cost - b.cost,
-      render: (c: number) => <Text type="secondary">{amount(c)}</Text>,
-    },
+      render: (c: number) => <Text type="secondary" style={{ fontVariantNumeric: 'tabular-nums' }}>{amount(c)}</Text>,
+    }] : []) as TableColumnsType<Product>),
     {
       title: t('products.col.price'),
       dataIndex: 'price',
@@ -152,7 +160,7 @@ export function ProductsPage() {
       sorter: (a, b) => a.price - b.price,
       render: (p: number) => <Text style={{ fontWeight: 500 }}>{amount(p)}</Text>,
     },
-    {
+    ...((showCost ? [{
       title: t('products.col.margin'),
       key: 'margin',
       width: w(80),
@@ -169,7 +177,7 @@ export function ProductsPage() {
           </Tooltip>
         );
       },
-    },
+    }] : []) as TableColumnsType<Product>),
     {
       title: t('products.col.sellable'),
       key: 'sellable',
@@ -208,7 +216,7 @@ export function ProductsPage() {
       width: w(100),
       responsive: ['xl'],
       sorter: (a, b) => a.updatedAt.localeCompare(b.updatedAt),
-      render: (d: string) => <Text type="secondary">{d}</Text>,
+      render: (d: string) => <Text type="secondary">{fmtDate(d)}</Text>,
     },
   ];
 
@@ -251,7 +259,7 @@ export function ProductsPage() {
           { title: t('products.stat.active'), value: stats.active.toLocaleString('en-HK') },
           { title: t('products.stat.draft'), value: stats.draft.toLocaleString('en-HK') },
           { title: t('products.stat.stocked'), value: stats.stocked.toLocaleString('en-HK') },
-          { title: t('products.stat.stockValue'), value: money(stats.stockValue) },
+          { title: t('products.stat.stockValue'), value: showCost ? money(stats.stockValue) : '—' },
         ].map((s) => (
           <Col key={s.title} xs={12} lg={6}>
             <Card size="small">
@@ -312,6 +320,7 @@ export function ProductsPage() {
         mobile={<ProductCards products={rows} />}
       >
         <Table<Product>
+          loading={loading}
           rowKey="sku"
           columns={columns}
           dataSource={rows}
