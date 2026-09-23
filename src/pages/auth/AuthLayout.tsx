@@ -2,8 +2,9 @@ import type { ReactNode } from 'react';
 import { Card, Flex, Segmented, Typography } from 'antd';
 import { LOCALES, useLocale } from '../../i18n';
 import { colors, useIsMobile } from '../../theme';
+import { Logo } from '../../components/Logo';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 /**
  * Frame shared by sign-in, forgot-password and reset-password.
@@ -35,29 +36,11 @@ export function AuthLayout({ children }: { children: ReactNode }) {
             padding: isMobile ? '8px 4px 20px' : '24px 40px 24px 8px',
           }}
         >
-          <Flex align="center" gap={12}>
-            <div
-              aria-hidden
-              style={{
-                width: isMobile ? 36 : 48,
-                height: isMobile ? 36 : 48,
-                borderRadius: 10,
-                background: colors.primary,
-                color: '#fff',
-                display: 'grid',
-                placeItems: 'center',
-                fontWeight: 700,
-                fontSize: isMobile ? 18 : 24,
-              }}
-            >
-              m
-            </div>
-            <Flex vertical gap={0}>
-              <Title level={isMobile ? 3 : 2} style={{ margin: 0 }}>
-                {t('auth.brand.name')}
-              </Title>
-              <Text type="secondary">{t('auth.brand.system')}</Text>
-            </Flex>
+          <Flex vertical gap={6} align="flex-start">
+            <Logo variant="lockup" height={isMobile ? 40 : 56} />
+            <Text type="secondary" style={{ fontSize: isMobile ? 14 : 16 }}>
+              {t('auth.brand.system')}
+            </Text>
           </Flex>
           {!isMobile && (
             <Text style={{ color: colors.textSecondary, fontSize: 16 }}>

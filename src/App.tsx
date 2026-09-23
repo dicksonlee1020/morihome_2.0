@@ -42,6 +42,7 @@ import type { MessageKey, Translate } from './i18n';
 import { AuthProvider, canOpen, landingPage, useAuth } from './auth';
 import type { PageKey, StaffUser } from './auth';
 import { Pill } from './components/Pill';
+import { Logo } from './components/Logo';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -71,30 +72,18 @@ const navLabelKey = (key: PageKey): MessageKey => `nav.${key}` as MessageKey;
  */
 const DENSE_BY_DEFAULT: PageKey[] = [];
 
-function Brand({ t }: { t: Translate }) {
+function Brand({ t, compact = false }: { t: Translate; compact?: boolean }) {
+  const isMobile = useIsMobile();
   return (
     <Flex align="center" gap={10}>
-      <div
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: 6,
-          background: colors.primary,
-          color: '#fff',
-          display: 'grid',
-          placeItems: 'center',
-          fontWeight: 700,
-          fontSize: 14,
-        }}
-      >
-        m
-      </div>
-      <Flex vertical gap={0} style={{ lineHeight: 1.2 }}>
-        <Text style={{ fontWeight: 600 }}>mori home</Text>
-        <Text type="secondary" style={{ fontSize: 13 }}>
-          {t('app.brandSub')}
-        </Text>
-      </Flex>
+      {isMobile && compact ? (
+        <Logo variant="mark" height={28} />
+      ) : (
+        <Logo variant="lockup" height={26} />
+      )}
+      <Text type="secondary" style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
+        {t('app.brandSub')}
+      </Text>
     </Flex>
   );
 }
@@ -237,7 +226,7 @@ function Shell({
                 style={{ fontSize: 18, color: colors.textSecondary }}
               />
             )}
-            <Brand t={t} />
+            <Brand t={t} compact />
           </Flex>
           <Flex align="center" gap={16}>
             <Tooltip title={t('app.locale.label')}>
@@ -286,7 +275,7 @@ function Shell({
           placement="left"
           size={240}
           onClose={() => setNavOpen(false)}
-          title={<Brand t={t} />}
+          title={<Brand t={t} compact />}
           styles={{ body: { padding: 0 } }}
         >
           <Nav page={page} user={user} onSelect={go} t={t} />
