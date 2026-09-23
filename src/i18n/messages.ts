@@ -430,6 +430,15 @@ export const messages = {
     'purchasing.downloadMany': '下載 {n} 份採購表（按供應商）',
     'purchasing.downloaded': '已生成並下載 {n} 份採購表：{list}。send 畀供應商後，收到訂貨確認就到「採購單」上載。',
     'purchasing.flowHint': '篩選供應商 → 下載採購表 send 畀供應商 → 收到訂貨確認就到「採購單」上載，狀態自動轉為已訂',
+
+    'inventory.filter.kind': '類型',
+    'waiting.filter.state': '發貨進度',
+    'orders.filter.status': '狀態',
+    'orders.filter.payment': '付款',
+    'followups.filter.bucket': '到期',
+    'followups.filter.owner': '負責人',
+    'products.filter.status': '狀態',
+    'products.filter.category': '分類',
   },
 
   'zh-Hans': {
@@ -855,6 +864,15 @@ export const messages = {
     'purchasing.downloadMany': '下载 {n} 份采购表（按供应商）',
     'purchasing.downloaded': '已生成并下载 {n} 份采购表：{list}。发给供应商后，收到订货确认就到「采购单」上传。',
     'purchasing.flowHint': '筛选供应商 → 下载采购表发给供应商 → 收到订货确认就到「采购单」上传，状态自动转为已订',
+
+    'inventory.filter.kind': '类型',
+    'waiting.filter.state': '发货进度',
+    'orders.filter.status': '状态',
+    'orders.filter.payment': '付款',
+    'followups.filter.bucket': '到期',
+    'followups.filter.owner': '负责人',
+    'products.filter.status': '状态',
+    'products.filter.category': '分类',
   },
 } as const;
 

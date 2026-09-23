@@ -11,7 +11,6 @@ import {
   Popover,
   Row,
   Segmented,
-  Select,
   Space,
   Statistic,
   Table,
@@ -44,7 +43,9 @@ import { useAuth } from '../auth';
 import type { MessageKey, Translate } from '../i18n';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
-import { useTableHeight } from '../utils/useTableHeight';
+import { FilterChip } from '../components/FilterChip';
+import { DataTableCard } from '../components/DataTableCard';
+import { useTablePagination } from '../utils/useTablePagination';
 import { useDensity } from '../utils/useDensity';
 import type { Tone } from '../utils/tones';
 
@@ -82,7 +83,8 @@ const LINE_TONE: Record<LineStatus, Tone> = {
   delivered: 'muted',
 };
 
-type Bucket = 'overdue' | 'today' | 'week' | 'later' | 'done' | 'all';
+type Bucket = 'overdue' | 'today' | 'week' | 'later' | 'done';
+const BUCKETS: Bucket[] = ['overdue', 'today', 'week', 'later', 'done'];
 
 const kindKey = (k: ActivityKind): MessageKey =>
   `followups.kind.${k}` as MessageKey;
@@ -108,16 +110,15 @@ export function MyFollowupsPage() {
   const isMobile = useIsMobile();
   const t = useT();
   const { user } = useAuth();
-  const tableHeight = useTableHeight(430);
   const { wc } = useDensity();
 
   const [rows, setRows] = useState<FollowupRow[]>(followupRows);
-  const [bucket, setBucket] = useState<Bucket>('overdue');
+  const [buckets, setBuckets] = useState<Bucket[]>(['overdue']);
   // "My" follow-ups: open on the signed-in person's list when they own any.
-  const [owner, setOwner] = useState<string>(() =>
+  const [owners, setOwners] = useState<string[]>(() =>
     user && (OWNERS as readonly string[]).includes(user.displayName)
-      ? user.displayName
-      : 'all'
+      ? [user.displayName]
+      : []
   );
   const [keyword, setKeyword] = useState('');
   const [selected, setSelected] = useState<React.Key[]>([]);
@@ -138,8 +139,8 @@ export function MyFollowupsPage() {
   const visible = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     return rows.filter((r) => {
-      if (bucket !== 'all' && bucketOf(r) !== bucket) return false;
-      if (owner !== 'all' && r.activity.owner !== owner) return false;
+      if (buckets.length > 0 && !buckets.includes(bucketOf(r))) return false;
+      if (owners.length > 0 && !owners.includes(r.activity.owner)) return false;
       if (!kw) return true;
       return (
         r.order.orderNo.toLowerCase().includes(kw) ||
@@ -148,7 +149,9 @@ export function MyFollowupsPage() {
         r.items.some((i) => i.toLowerCase().includes(kw))
       );
     });
-  }, [rows, bucket, owner, keyword]);
+  }, [rows, buckets, owners, keyword]);
+
+  const pagination = useTablePagination(visible.length);
 
   /** Replace one row and drop the selection that referenced it. */
   const applyRow = (id: string, next: (row: FollowupRow) => FollowupRow) => {
@@ -379,12 +382,22 @@ export function MyFollowupsPage() {
     },
   ];
 
-  const bucketOptions: { value: Bucket; label: string }[] = (
-    ['overdue', 'today', 'week', 'later', 'done', 'all'] as Bucket[]
-  ).map((b) => ({
+  const bucketOptions = BUCKETS.map((b) => ({
     value: b,
-    label: `${t(`followups.bucket.${b}` as MessageKey)} ${counts[b]}`,
+    label: (
+      <Flex justify="space-between" gap={12} style={{ flexGrow: 1 }}>
+        <Text>{t(`followups.bucket.${b}` as MessageKey)}</Text>
+        <Text type="secondary">{counts[b]}</Text>
+      </Flex>
+    ),
   }));
+  const ownerOptions = OWNERS.map((o) => ({ value: o, label: o }));
+  const filtered = buckets.length > 0 || owners.length > 0 || keyword !== '';
+  const clearFilters = () => {
+    setBuckets([]);
+    setOwners([]);
+    setKeyword('');
+  };
 
   return (
     <Flex vertical gap={16}>
@@ -395,7 +408,7 @@ export function MyFollowupsPage() {
           </Title>
           <Text type="secondary">
             {t('followups.subtitle', {
-              owner: owner === 'all' ? t('followups.owner.all') : owner,
+              owner: owners.length === 1 ? owners[0] : t('followups.owner.all'),
               date: DEMO_TODAY,
             })}
           </Text>
@@ -443,111 +456,57 @@ export function MyFollowupsPage() {
         </Col>
       </Row>
 
-      <Card
-        styles={{ body: { paddingTop: 12 } }}
-        title={
-          isMobile ? (
-            <Select
-              value={bucket}
-              onChange={setBucket}
-              options={bucketOptions}
-              style={{ width: '100%' }}
-            />
-          ) : (
-            <Segmented
-              value={bucket}
-              onChange={(v) => setBucket(v as Bucket)}
-              options={bucketOptions}
-            />
-          )
+      <DataTableCard
+        filters={
+          <>
+            <FilterChip label={t('followups.filter.bucket')} options={bucketOptions} value={buckets} onChange={setBuckets} />
+            <FilterChip label={t('followups.filter.owner')} options={ownerOptions} value={owners} onChange={setOwners} />
+          </>
         }
-        extra={
-          !isMobile && (
-            <Text type="secondary">
-              {t('followups.count', { n: visible.length })}
-            </Text>
-          )
+        onClearFilters={filtered ? clearFilters : undefined}
+        search={{ value: keyword, onChange: setKeyword, placeholder: t('followups.search') }}
+        count={t('followups.count', { n: visible.length })}
+        selection={{
+          count: selected.length,
+          text: t('followups.bulk.selected', { n: selected.length }),
+          actions: (
+            <Button size="small" onClick={bulkPostpone}>
+              {t('followups.bulk.postpone')}
+            </Button>
+          ),
+          onClear: () => setSelected([]),
+        }}
+        mobile={
+          <CardList
+            items={visible}
+            rowKey={(r) => r.activity.id}
+            pageSize={8}
+            emptyText={t('followups.empty')}
+            renderItem={(r) => (
+              <FollowupCard
+                row={r}
+                t={t}
+                onSchedule={schedule}
+                onUnreachable={markUnreachable}
+                onPostpone={postpone}
+              />
+            )}
+          />
         }
       >
-        <Flex vertical gap={12}>
-          <Flex gap={8} wrap>
-            <Input
-              allowClear
-              placeholder={t('followups.search')}
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              style={{ width: isMobile ? '100%' : 260 }}
-            />
-            <Select
-              value={owner}
-              onChange={setOwner}
-              style={{ width: isMobile ? '100%' : 150 }}
-              options={[
-                { value: 'all', label: t('followups.owner.all') },
-                ...OWNERS.map((o) => ({ value: o, label: o })),
-              ]}
-            />
-          </Flex>
-
-          {selected.length > 0 && (
-            <Flex
-              align="center"
-              justify="space-between"
-              wrap
-              gap={8}
-              style={{
-                padding: '6px 12px',
-                background: colors.primarySubtle,
-                borderRadius: 6,
-              }}
-            >
-              <Text>{t('followups.bulk.selected', { n: selected.length })}</Text>
-              <Space>
-                <Button size="small" onClick={bulkPostpone}>
-                  {t('followups.bulk.postpone')}
-                </Button>
-                <Button size="small" type="text" onClick={() => setSelected([])}>
-                  {t('followups.bulk.clear')}
-                </Button>
-              </Space>
-            </Flex>
-          )}
-
-          {isMobile ? (
-            <CardList
-              items={visible}
-              rowKey={(r) => r.activity.id}
-              pageSize={8}
-              emptyText={t('followups.empty')}
-              renderItem={(r) => (
-                <FollowupCard
-                  row={r}
-                  t={t}
-                  onSchedule={schedule}
-                  onUnreachable={markUnreachable}
-                  onPostpone={postpone}
-                />
-              )}
-            />
-          ) : (
-            <Table<FollowupRow>
-              rowKey={(r) => r.activity.id}
-              columns={columns}
-              dataSource={visible}
-              // 124 fixtures; virtual scrolling keeps the "100+ rows without
-              // lag" acceptance rule true as the list grows.
-              virtual
-              scroll={{ x: wc(1000), y: tableHeight }}
-              pagination={false}
-              rowSelection={{
-                selectedRowKeys: selected,
-                onChange: setSelected,
-                columnWidth: wc(48),
-              }}
-            />
-          )}
-        </Flex>
-      </Card>
+        <Table<FollowupRow>
+          rowKey={(r) => r.activity.id}
+          columns={columns}
+          dataSource={visible}
+          pagination={pagination}
+          scroll={{ x: wc(1000) }}
+          rowSelection={{
+            selectedRowKeys: selected,
+            onChange: setSelected,
+            columnWidth: wc(48),
+          }}
+        />
+      </DataTableCard>
     </Flex>
   );
 }

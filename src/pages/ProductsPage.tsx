@@ -5,10 +5,7 @@ import {
   Card,
   Col,
   Flex,
-  Input,
   Row,
-  Segmented,
-  Select,
   Space,
   Statistic,
   Switch,
@@ -20,7 +17,6 @@ import type { TableColumnsType } from 'antd';
 import {
   DownloadOutlined,
   PlusOutlined,
-  SearchOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
 import {
@@ -30,22 +26,22 @@ import {
   TOTAL_SKU,
   products as catalog,
 } from '../data/catalog';
-import { colors, useIsMobile } from '../theme';
+import { colors } from '../theme';
 import { amount, money, percent } from '../utils/format';
 import { margin, sellable, stockState } from '../types';
 import type { Product, ProductStatus, SourcingType } from '../types';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
+import { FilterChip } from '../components/FilterChip';
+import { DataTableCard } from '../components/DataTableCard';
+import { useTablePagination } from '../utils/useTablePagination';
 import { ItemName, NameDisplaySwitch } from '../components/ItemName';
-import { useTableHeight } from '../utils/useTableHeight';
 import { useT } from '../i18n';
 import type { MessageKey } from '../i18n';
 import { useDensity } from '../utils/useDensity';
 import type { Tone } from '../utils/tones';
 
 const { Text, Title } = Typography;
-
-type StatusFilter = ProductStatus | 'all';
 
 /** 毛利低過呢個數就標色，叫同事覆下個成本價 */
 const MARGIN_FLOOR = 0.4;
@@ -58,14 +54,12 @@ const SOURCING_META: Record<SourcingType, { labelKey: MessageKey; tone: Tone }> 
 
 export function ProductsPage() {
   const { message } = App.useApp();
-  const isMobile = useIsMobile();
   const t = useT();
-  const tableHeight = useTableHeight(470);
   const { w } = useDensity();
 
-  const [status, setStatus] = useState<StatusFilter>('all');
-  const [category, setCategory] = useState<string | undefined>();
-  const [series, setSeries] = useState<string | undefined>();
+  const [statuses, setStatuses] = useState<ProductStatus[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [seriesSel, setSeriesSel] = useState<string[]>([]);
   const [keyword, setKeyword] = useState('');
   const [stockedOnly, setStockedOnly] = useState(false);
   const [selected, setSelected] = useState<React.Key[]>([]);
@@ -73,9 +67,9 @@ export function ProductsPage() {
   const rows = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     return catalog.filter((p) => {
-      if (status !== 'all' && p.status !== status) return false;
-      if (category && p.category !== category) return false;
-      if (series && p.series !== series) return false;
+      if (statuses.length > 0 && !statuses.includes(p.status)) return false;
+      if (categories.length > 0 && !categories.includes(p.category)) return false;
+      if (seriesSel.length > 0 && !seriesSel.includes(p.series)) return false;
       if (stockedOnly && p.sourcingType !== 'stocked') return false;
       if (!kw) return true;
       // 兩個名都搜得到（B-07）：出街名、廠家名、廠家型號
@@ -87,7 +81,9 @@ export function ProductsPage() {
         p.supplierCode.toLowerCase().includes(kw)
       );
     });
-  }, [status, category, series, keyword, stockedOnly]);
+  }, [statuses, categories, seriesSel, keyword, stockedOnly]);
+
+  const pagination = useTablePagination(rows.length);
 
   const stats = useMemo(() => {
     let active = 0;
@@ -216,39 +212,19 @@ export function ProductsPage() {
     },
   ];
 
-  const toolbar = (
-    <Flex gap={8} wrap>
-      <Input
-        allowClear
-        prefix={<SearchOutlined style={{ color: colors.textMuted }} />}
-        placeholder={t('common.search.sku')}
-        value={keyword}
-        onChange={(e) => setKeyword(e.target.value)}
-        style={{ width: isMobile ? '100%' : 240 }}
-      />
-      <Select
-        allowClear
-        placeholder={t('common.category')}
-        value={category}
-        onChange={setCategory}
-        options={CATEGORY_OPTIONS}
-        style={{ width: isMobile ? '100%' : 130 }}
-      />
-      <Select
-        allowClear
-        placeholder={t('products.filter.series')}
-        value={series}
-        onChange={setSeries}
-        options={SERIES.map((s) => ({ value: s, label: s }))}
-        style={{ width: isMobile ? '100%' : 120 }}
-      />
-      <Flex align="center" gap={8}>
-        <Switch checked={stockedOnly} onChange={setStockedOnly} size="small" />
-        <Text type="secondary">{t('products.stockedOnly')}</Text>
-      </Flex>
-      <NameDisplaySwitch />
-    </Flex>
-  );
+  const filtered = statuses.length > 0 || categories.length > 0 || seriesSel.length > 0 || stockedOnly || keyword !== '';
+  const clearFilters = () => {
+    setStatuses([]);
+    setCategories([]);
+    setSeriesSel([]);
+    setStockedOnly(false);
+    setKeyword('');
+  };
+
+  const statusOptions = (Object.keys(PRODUCT_STATUS_META) as ProductStatus[]).map((v) => ({
+    value: v,
+    label: <Pill tone={PRODUCT_STATUS_META[v].tone} dot>{t(PRODUCT_STATUS_META[v].labelKey)}</Pill>,
+  }));
 
   return (
     <Flex vertical gap={12}>
@@ -289,98 +265,65 @@ export function ProductsPage() {
         ))}
       </Row>
 
-      <Card
-        styles={{ body: { paddingTop: 12 } }}
-        title={
-          isMobile ? (
-            <Select
-              value={status}
-              onChange={setStatus}
-              style={{ width: '100%' }}
-              options={[
-                { value: 'all', label: t('products.status.all') },
-                ...Object.entries(PRODUCT_STATUS_META).map(([v, m]) => ({
-                  value: v,
-                  label: t(m.labelKey),
-                })),
-              ]}
+      <DataTableCard
+        filters={
+          <>
+            <FilterChip label={t('products.filter.status')} options={statusOptions} value={statuses} onChange={setStatuses} />
+            <FilterChip
+              label={t('products.filter.category')}
+              options={CATEGORY_OPTIONS.map((c) => ({ value: c.value, label: c.label }))}
+              value={categories}
+              onChange={setCategories}
             />
-          ) : (
-            <Segmented
-              value={status}
-              onChange={(v) => setStatus(v as StatusFilter)}
-              options={[
-                { value: 'all', label: t('common.all') },
-                ...Object.entries(PRODUCT_STATUS_META).map(([v, m]) => ({
-                  value: v,
-                  label: t(m.labelKey),
-                })),
-              ]}
+            <FilterChip
+              label={t('products.filter.series')}
+              options={SERIES.map((v) => ({ value: v, label: v }))}
+              value={seriesSel}
+              onChange={setSeriesSel}
             />
-          )
-        }
-        extra={
-          !isMobile && (
-            <Text type="secondary">
-              {t('common.filteredSku', { n: rows.length.toLocaleString('en-HK') })}
-            </Text>
-          )
-        }
-      >
-        <Flex vertical gap={12}>
-          {toolbar}
-
-          {selected.length > 0 && (
-            <Flex
-              align="center"
-              justify="space-between"
-              wrap
-              gap={8}
-              style={{
-                padding: '6px 12px',
-                background: colors.primarySubtle,
-                borderRadius: 6,
-              }}
-            >
-              <Text>{t('common.selectedSku', { n: selected.length })}</Text>
-              <Space>
-                <Button size="small" onClick={() => message.success(t('products.bulk.published', { n: selected.length }))}>
-                  {t('products.bulk.publish')}
-                </Button>
-                <Button size="small" onClick={() => message.success(t('products.bulk.unpublished', { n: selected.length }))}>
-                  {t('products.bulk.unpublish')}
-                </Button>
-                <Button size="small" onClick={() => message.info(t('products.bulk.repriceDemo'))}>
-                  {t('products.bulk.reprice')}
-                </Button>
-                <Button size="small" type="text" onClick={() => setSelected([])}>
-                  {t('common.clear')}
-                </Button>
-              </Space>
+            <Flex align="center" gap={8} style={{ paddingInline: 4 }}>
+              <Switch checked={stockedOnly} onChange={setStockedOnly} size="small" />
+              <Text type="secondary">{t('products.stockedOnly')}</Text>
             </Flex>
-          )}
-
-          {isMobile ? (
-            <ProductCards products={rows} />
-          ) : (
-            <Table<Product>
-              rowKey="sku"
-              columns={columns}
-              dataSource={rows}
-              // 5,241 行唔用虛擬捲動會卡；虛擬捲動就冇分頁，改為固定高度捲
-              virtual
-              scroll={{ x: w(1000), y: tableHeight }}
-              pagination={false}
-              rowSelection={{
-                selectedRowKeys: selected,
-                onChange: setSelected,
-                // antd 預設 32px，舒適模式 padding 一大就切到個 checkbox
-                columnWidth: w(40),
-              }}
-            />
-          )}
-        </Flex>
-      </Card>
+          </>
+        }
+        onClearFilters={filtered ? clearFilters : undefined}
+        search={{ value: keyword, onChange: setKeyword, placeholder: t('common.search.sku') }}
+        extra={<NameDisplaySwitch />}
+        count={t('common.filteredSku', { n: rows.length.toLocaleString('en-HK') })}
+        selection={{
+          count: selected.length,
+          text: t('common.selectedSku', { n: selected.length }),
+          actions: (
+            <>
+              <Button size="small" onClick={() => message.success(t('products.bulk.published', { n: selected.length }))}>
+                {t('products.bulk.publish')}
+              </Button>
+              <Button size="small" onClick={() => message.success(t('products.bulk.unpublished', { n: selected.length }))}>
+                {t('products.bulk.unpublish')}
+              </Button>
+              <Button size="small" onClick={() => message.info(t('products.bulk.repriceDemo'))}>
+                {t('products.bulk.reprice')}
+              </Button>
+            </>
+          ),
+          onClear: () => setSelected([]),
+        }}
+        mobile={<ProductCards products={rows} />}
+      >
+        <Table<Product>
+          rowKey="sku"
+          columns={columns}
+          dataSource={rows}
+          pagination={pagination}
+          scroll={{ x: w(1000) }}
+          rowSelection={{
+            selectedRowKeys: selected,
+            onChange: setSelected,
+            columnWidth: w(40),
+          }}
+        />
+      </DataTableCard>
     </Flex>
   );
 }

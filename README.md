@@ -6,7 +6,11 @@ Morihome ERP 前端，React + TypeScript + Vite + Ant Design 5/6，全套 UI 跟
 採購 → 庫存等候 → 庫存 呢條線係照 Ocean 2026-09-23 嘅原型 feedback 改（`docs/backlog.md` B-01 至 B-07）。
 全部預設舒適模式（密集嘅 13px 字太細，Dickson 2026-09-22 決定）；右上角可以切密集。
 
-側邊欄可以收成 icon rail（header 左上角掣，記喺 localStorage）。
+側邊欄可以收成 icon rail（header 左上角掣，記喺 localStorage）。舒適／密集掣已收起（2026-09-23），全部畫面舒適模式。
+
+每個有 table 嘅頁同一個結構（`components/DataTableCard.tsx`）：上面 filter chip（多選、有全部選擇）+ 搜尋 + 動作掣，
+跟住一行「篩選後幾多項」（有揀行就變批量操作列），然後 table + pagination（每頁 15 / 50 / 100，全站記住）。
+手機版換卡片列表。
 
 設計 spec 喺 `docs/design/erp-redesign-spec.md`，工作守則喺 `CLAUDE.md` ——
 做 feature 之前先讀相關章節。
@@ -61,6 +65,8 @@ src/
   data/ops.test.ts            採購、訂貨確認、發貨表對數嘅測試（7 個）
   components/ItemName.tsx     雙名顯示（出街名 ↔ 廠商名）+ 縮圖 + 切換掣
   components/FilterChip.tsx   表格上面嘅多選篩選 chip（Popover + checkbox + 全選）
+  components/DataTableCard.tsx 所有 table 頁共用嘅卡片結構
+  utils/useTablePagination.ts  統一 pagination（page size 記喺 localStorage）
   utils/purchaseSheet.ts      採購表 Excel（SheetJS，只寫唔讀）
   utils/nameDisplay.ts        per-user 名稱顯示設定（localStorage 頂住）
   components/Pill.tsx         狀態藥丸（顏色只收 theme 傳入）
@@ -75,7 +81,6 @@ src/
   utils/format.ts             金額 / 百分比格式
   utils/tones.ts              功能色配對
   utils/useDensity.ts         問返 theme 而家係邊個密度
-  utils/useTableHeight.ts     表格高度跟視窗走
   App.tsx                     ConfigProvider + Layout + 導覽
 ```
 
@@ -162,19 +167,18 @@ src/
 
 ## 產品（Ocean B-07）
 
-- 5,241 個 SKU，antd Table `virtual` 虛擬捲動
+- 5,241 個 SKU，分頁（15 / 50 / 100）
 - 每件貨兩個名：出街名（我哋賣嘅）同廠商名（廠家型號 + 發貨表叫法）。
   主顯示邊個係 per-user 設定（工具列「出街名 / 廠商名」，暫時 localStorage），另一個名細字跟住；搜尋兩個名都搵到
 - 縮圖：暫時係分類配色方塊，真相片由 Shopify 同步層嚟（只讀）；廠家嗰邊有冇圖要問 Ocean
 - 來源類型：儲定貨 / 落單訂 / 訂造；「可售」只對儲定貨款有意思，其餘顯示 —
 - 毛利低過 40% 會標色；多選 + 批量上架 / 下架 / 改價
 
-## 密集模式點樣做到密
+## 密集模式（已收起）
 
-- 行高：密集 41px、舒適 67px，同一屏 14 行 vs 9 行
-- 欄闊跟密度走（`useDensity()` 嘅 `w()`）—— 唔咁做嘅話舒適模式啲欄頭會直行
-- 表格入面唔用 Button 做連結：`controlHeight` 會撐高每一行，密集就白做
-- 狀態藥丸喺表格用短文案（「偏低」），長文案（「低於安全存量」）留畀篩選列同 tooltip
+- `moriThemeCompact` 仍然喺 theme.ts，`useDensity()` 嘅 `w()` / `wc()` 欄闊縮放都留住，但 header 切換掣已收起，
+  全部畫面舒適模式。要再開就喺 `App.tsx` 加返個 Segmented。
+- 表格入面唔用 Button 做連結：`controlHeight` 會撐高每一行
 
 ## 未做 / 待對
 

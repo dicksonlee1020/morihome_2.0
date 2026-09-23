@@ -6,28 +6,26 @@ import {
   Col,
   Empty,
   Flex,
-  Input,
   InputNumber,
   Row,
-  Segmented,
-  Select,
-  Space,
   Statistic,
   Table,
   Tooltip,
   Typography,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { SearchOutlined, ShoppingCartOutlined } from '@ant-design/icons';
+import { ShoppingCartOutlined } from '@ant-design/icons';
 import { stockedProducts } from '../data/catalog';
 import { createStockRequirements } from '../data/ops';
-import { colors, useIsMobile } from '../theme';
+import { colors } from '../theme';
 import { onHand, sellable } from '../types';
 import type { Product } from '../types';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
+import { FilterChip } from '../components/FilterChip';
+import { DataTableCard } from '../components/DataTableCard';
+import { useTablePagination } from '../utils/useTablePagination';
 import { ItemName, NameDisplaySwitch } from '../components/ItemName';
-import { useTableHeight } from '../utils/useTableHeight';
 import { useT } from '../i18n';
 import type { MessageKey } from '../i18n';
 import { useDensity } from '../utils/useDensity';
@@ -69,18 +67,14 @@ const suggest = (p: Product, safety: number) => {
   return Math.max(0, safety * 2 - sellable(p.stock) - p.stock.inTransit);
 };
 
-type Filter = Reminder | 'all';
-
 export function RestockPage() {
   const { message } = App.useApp();
   const t = useT();
-  const isMobile = useIsMobile();
   const { wc } = useDensity();
-  const tableHeight = useTableHeight(470);
 
   /** sku → 改咗嘅安全存量。安全存量係真欄位，唔係推導，所以可以 inline 改。 */
   const [safety, setSafety] = useState<Record<string, number>>({});
-  const [filter, setFilter] = useState<Filter>('all');
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [keyword, setKeyword] = useState('');
   const [selected, setSelected] = useState<React.Key[]>([]);
 
@@ -91,7 +85,7 @@ export function RestockPage() {
     const order: Reminder[] = ['now', 'soon', 'covered', 'ok'];
     return stockedProducts
       .filter((p) => {
-        if (filter !== 'all' && reminder(p, safetyOf(p)) !== filter) return false;
+        if (reminders.length > 0 && !reminders.includes(reminder(p, safetyOf(p)))) return false;
         if (!kw) return true;
         return (
           p.sku.toLowerCase().includes(kw) ||
@@ -102,7 +96,9 @@ export function RestockPage() {
       })
       .sort((a, b) => order.indexOf(reminder(a, safetyOf(a))) - order.indexOf(reminder(b, safetyOf(b))));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, keyword, safety]);
+  }, [reminders, keyword, safety]);
+
+  const pagination = useTablePagination(rows.length);
 
   const stats = useMemo(() => {
     const c = { now: 0, soon: 0, covered: 0, ok: 0 };
@@ -215,13 +211,10 @@ export function RestockPage() {
     },
   ];
 
-  const filterOptions = [
-    { value: 'all', label: t('common.all') },
-    { value: 'now', label: t('restock.reminder.now') },
-    { value: 'soon', label: t('restock.reminder.soon') },
-    { value: 'covered', label: t('restock.reminder.covered') },
-    { value: 'ok', label: t('restock.reminder.ok') },
-  ];
+  const reminderOptions = (['now', 'soon', 'covered', 'ok'] as Reminder[]).map((v) => ({
+    value: v,
+    label: <Pill tone={REMINDER_META[v].tone} dot>{t(REMINDER_META[v].labelKey)}</Pill>,
+  }));
 
   return (
     <Flex vertical gap={12}>
@@ -247,88 +240,65 @@ export function RestockPage() {
         ))}
       </Row>
 
-      <Card
-        styles={{ body: { paddingTop: 12 } }}
-        title={
-          isMobile ? (
-            <Select value={filter} onChange={(v) => setFilter(v as Filter)} options={filterOptions} style={{ width: '100%' }} />
-          ) : (
-            <Segmented value={filter} onChange={(v) => setFilter(v as Filter)} options={filterOptions} />
-          )
-        }
-        extra={!isMobile && <Text type="secondary">{t('common.filteredSku', { n: rows.length })}</Text>}
-      >
-        <Flex vertical gap={12}>
-          <Flex gap={8} wrap align="center">
-            <Input
-              allowClear
-              prefix={<SearchOutlined style={{ color: colors.textMuted }} />}
-              placeholder={t('common.search.sku')}
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              style={{ width: isMobile ? '100%' : 260 }}
-            />
-            <NameDisplaySwitch />
-            <Text type="secondary" style={{ fontSize: 13 }}>{t('restock.hint')}</Text>
-          </Flex>
-
-          {selected.length > 0 && (
-            <Flex align="center" justify="space-between" wrap gap={8} style={{ padding: '6px 12px', background: colors.primarySubtle, borderRadius: 6 }}>
-              <Text>{t('common.selectedSku', { n: selected.length })}</Text>
-              <Space>
-                <Button size="small" type="primary" icon={<ShoppingCartOutlined />} onClick={raise}>
-                  {t('restock.bulk.raise')}
-                </Button>
-                <Button size="small" type="text" onClick={() => setSelected([])}>{t('common.clear')}</Button>
-              </Space>
-            </Flex>
-          )}
-
-          {isMobile ? (
-            <CardList
-              items={rows}
-              rowKey={(p) => p.sku}
-              emptyText={t('common.emptySku')}
-              renderItem={(p) => {
-                const r = reminder(p, safetyOf(p));
-                const m = REMINDER_META[r];
-                const n = suggest(p, safetyOf(p));
-                return (
-                  <Card size="small" styles={{ body: { padding: '12px 16px' } }}>
-                    <Flex vertical gap={8}>
-                      <Flex justify="space-between" align="center" gap={8}>
-                        <Text style={{ fontWeight: 600 }}>{p.sku}</Text>
-                        <Pill tone={m.tone} dot>{t(m.labelKey)}</Pill>
-                      </Flex>
-                      <ItemName product={p} thumb />
-                      <Flex gap={12} wrap>
-                        <Text style={{ fontWeight: 600, color: r === 'now' ? colors.error : r === 'soon' ? colors.warningText : undefined }}>
-                          {t('restock.card.sellable', { n: sellable(p.stock) })}
-                        </Text>
-                        <Text type="secondary">{t('restock.card.onHand', { n: onHand(p.stock) })}</Text>
-                        <Text type="secondary">{t('restock.card.safety', { n: safetyOf(p) })}</Text>
-                        {p.stock.inTransit > 0 && <Text style={{ color: colors.primary }}>{t('restock.card.inTransit', { n: p.stock.inTransit })}</Text>}
-                        {n > 0 && <Text style={{ fontWeight: 500 }}>{t('restock.card.suggest', { n })}</Text>}
-                      </Flex>
+      <DataTableCard
+        filters={<FilterChip label={t('restock.col.reminder')} options={reminderOptions} value={reminders} onChange={setReminders} />}
+        onClearFilters={reminders.length > 0 || keyword ? () => { setReminders([]); setKeyword(''); } : undefined}
+        search={{ value: keyword, onChange: setKeyword, placeholder: t('common.search.sku') }}
+        extra={<NameDisplaySwitch />}
+        count={`${t('common.filteredSku', { n: rows.length })} · ${t('restock.hint')}`}
+        selection={{
+          count: selected.length,
+          text: t('common.selectedSku', { n: selected.length }),
+          actions: (
+            <Button size="small" type="primary" icon={<ShoppingCartOutlined />} onClick={raise}>
+              {t('restock.bulk.raise')}
+            </Button>
+          ),
+          onClear: () => setSelected([]),
+        }}
+        mobile={
+          <CardList
+            items={rows}
+            rowKey={(p) => p.sku}
+            emptyText={t('common.emptySku')}
+            renderItem={(p) => {
+              const r = reminder(p, safetyOf(p));
+              const m = REMINDER_META[r];
+              const n = suggest(p, safetyOf(p));
+              return (
+                <Card size="small" styles={{ body: { padding: '12px 16px' } }}>
+                  <Flex vertical gap={8}>
+                    <Flex justify="space-between" align="center" gap={8}>
+                      <Text style={{ fontWeight: 600 }}>{p.sku}</Text>
+                      <Pill tone={m.tone} dot>{t(m.labelKey)}</Pill>
                     </Flex>
-                  </Card>
-                );
-              }}
-            />
-          ) : (
-            <Table<Product>
-              rowKey="sku"
-              columns={columns}
-              dataSource={rows}
-              virtual
-              scroll={{ x: wc(1100), y: tableHeight }}
-              pagination={false}
-              rowSelection={{ selectedRowKeys: selected, onChange: setSelected, columnWidth: wc(48) }}
-              locale={{ emptyText: <Empty description={t('common.emptySku')} /> }}
-            />
-          )}
-        </Flex>
-      </Card>
+                    <ItemName product={p} thumb />
+                    <Flex gap={12} wrap>
+                      <Text style={{ fontWeight: 600, color: r === 'now' ? colors.error : r === 'soon' ? colors.warningText : undefined }}>
+                        {t('restock.card.sellable', { n: sellable(p.stock) })}
+                      </Text>
+                      <Text type="secondary">{t('restock.card.onHand', { n: onHand(p.stock) })}</Text>
+                      <Text type="secondary">{t('restock.card.safety', { n: safetyOf(p) })}</Text>
+                      {p.stock.inTransit > 0 && <Text style={{ color: colors.primary }}>{t('restock.card.inTransit', { n: p.stock.inTransit })}</Text>}
+                      {n > 0 && <Text style={{ fontWeight: 500 }}>{t('restock.card.suggest', { n })}</Text>}
+                    </Flex>
+                  </Flex>
+                </Card>
+              );
+            }}
+          />
+        }
+      >
+        <Table<Product>
+          rowKey="sku"
+          columns={columns}
+          dataSource={rows}
+          pagination={pagination}
+          scroll={{ x: wc(1100) }}
+          rowSelection={{ selectedRowKeys: selected, onChange: setSelected, columnWidth: wc(48) }}
+          locale={{ emptyText: <Empty description={t('common.emptySku')} /> }}
+        />
+      </DataTableCard>
     </Flex>
   );
 }

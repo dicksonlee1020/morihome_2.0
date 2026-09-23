@@ -23,7 +23,6 @@ import {
   DownloadOutlined,
   FileDoneOutlined,
   InboxOutlined,
-  SearchOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { SUPPLIERS } from '../data/catalog';
@@ -36,13 +35,14 @@ import {
   useOps,
 } from '../data/ops';
 import type { PurchaseOrder, Requirement, RequirementStatus } from '../data/ops';
-import { colors, useIsMobile } from '../theme';
+import { colors } from '../theme';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
 import { FilterChip } from '../components/FilterChip';
 import { downloadPurchaseSheet } from '../utils/purchaseSheet';
 import { ItemName, NameDisplaySwitch } from '../components/ItemName';
-import { useTableHeight } from '../utils/useTableHeight';
+import { DataTableCard } from '../components/DataTableCard';
+import { useTablePagination } from '../utils/useTablePagination';
 import { useT } from '../i18n';
 import type { MessageKey } from '../i18n';
 import { useDensity } from '../utils/useDensity';
@@ -65,9 +65,7 @@ const STATUS_META: Record<RequirementStatus, { labelKey: MessageKey; tone: Tone 
 export function PurchasingPage() {
   const { message } = App.useApp();
   const t = useT();
-  const isMobile = useIsMobile();
   const { wc } = useDensity();
-  const tableHeight = useTableHeight(520);
   const ops = useOps();
 
   const [tab, setTab] = useState<'requirements' | 'orders'>('requirements');
@@ -107,6 +105,8 @@ export function PurchasingPage() {
       })
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.orderNo.localeCompare(b.orderNo));
   }, [withStatus, suppliers, statuses, keyword]);
+
+  const pagination = useTablePagination(rows.length);
 
   const filtered = suppliers.length > 0 || statuses.length !== 1 || statuses[0] !== 'open' || keyword !== '';
   const clearFilters = () => {
@@ -251,9 +251,9 @@ export function PurchasingPage() {
         : t('purchasing.download');
 
   const requirementsTab = (
-    <Card styles={{ body: { paddingTop: 12 } }}>
-      <Flex vertical gap={12}>
-        <Flex gap={8} wrap align="center">
+    <DataTableCard
+      filters={
+        <>
           <FilterChip
             label={t('purchasing.filter.supplier')}
             options={supplierOptions}
@@ -273,95 +273,75 @@ export function PurchasingPage() {
               setSelected([]);
             }}
           />
-          {filtered && (
-            <Button type="text" size="small" onClick={clearFilters}>
-              {t('filter.clearAll')}
-            </Button>
-          )}
-          <span style={{ flexGrow: 1 }} />
-          <Input
-            allowClear
-            prefix={<SearchOutlined style={{ color: colors.textMuted }} />}
-            placeholder={t('purchasing.search')}
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            style={{ width: isMobile ? '100%' : 260 }}
-          />
+        </>
+      }
+      onClearFilters={filtered ? clearFilters : undefined}
+      search={{ value: keyword, onChange: setKeyword, placeholder: t('purchasing.search') }}
+      extra={
+        <>
           <NameDisplaySwitch />
-          <Button
-            type="primary"
-            icon={<DownloadOutlined />}
-            disabled={targetRows.length === 0}
-            onClick={download}
-          >
+          <Button type="primary" icon={<DownloadOutlined />} disabled={targetRows.length === 0} onClick={download}>
             {downloadLabel}
           </Button>
-        </Flex>
-
-        <Flex align="center" justify="space-between" wrap gap={8}>
-          <Text type="secondary" style={{ fontSize: 13 }}>
-            {selectedRows.length > 0
-              ? t('purchasing.selected', { n: selectedRows.length, suppliers: targetSuppliers.length })
-              : t('purchasing.filtered', { n: rows.length })}
-          </Text>
-          {selectedRows.length > 0 && (
-            <Button size="small" type="text" onClick={() => setSelected([])}>
-              {t('common.clear')}
-            </Button>
-          )}
-        </Flex>
-
-        {isMobile ? (
-          <CardList
-            items={rows}
-            rowKey={(r) => r.id}
-            renderItem={(r) => {
-              const p = productOf(r.sku);
-              const m = STATUS_META[r.status];
-              const picked = selected.includes(r.id);
-              return (
-                <Card
-                  size="small"
-                  onClick={() =>
-                    r.status === 'open' &&
-                    setSelected((prev) => (picked ? prev.filter((k) => k !== r.id) : [...prev, r.id]))
-                  }
-                  style={{ borderColor: picked ? colors.primary : undefined }}
-                >
-                  <Flex vertical gap={8}>
-                    <Flex justify="space-between" align="center">
-                      <Text style={{ fontWeight: 600 }}>
-                        {isStockRequirement(r) ? t('purchasing.stockOrder') : `${r.orderNo} · ${r.customer.alias} · ${r.customer.district}`}
-                      </Text>
-                      <Pill tone={m.tone} dot>{t(m.labelKey)}</Pill>
-                    </Flex>
-                    {p && <ItemName product={p} thumb />}
-                    <Text type="secondary">
-                      {r.createdAt} · {r.supplier} · {t('purchasing.col.qty')} {r.qty}
+        </>
+      }
+      count={t('purchasing.filtered', { n: rows.length })}
+      selection={{
+        count: selectedRows.length,
+        text: t('purchasing.selected', { n: selectedRows.length, suppliers: targetSuppliers.length }),
+        actions: null,
+        onClear: () => setSelected([]),
+      }}
+      mobile={
+        <CardList
+          items={rows}
+          rowKey={(r) => r.id}
+          renderItem={(r) => {
+            const p = productOf(r.sku);
+            const m = STATUS_META[r.status];
+            const picked = selected.includes(r.id);
+            return (
+              <Card
+                size="small"
+                onClick={() =>
+                  r.status === 'open' &&
+                  setSelected((prev) => (picked ? prev.filter((k) => k !== r.id) : [...prev, r.id]))
+                }
+                style={{ borderColor: picked ? colors.primary : undefined }}
+              >
+                <Flex vertical gap={8}>
+                  <Flex justify="space-between" align="center">
+                    <Text style={{ fontWeight: 600 }}>
+                      {isStockRequirement(r) ? t('purchasing.stockOrder') : `${r.orderNo} · ${r.customer.alias} · ${r.customer.district}`}
                     </Text>
+                    <Pill tone={m.tone} dot>{t(m.labelKey)}</Pill>
                   </Flex>
-                </Card>
-              );
-            }}
-          />
-        ) : (
-          <Table
-            rowKey="id"
-            columns={columns}
-            dataSource={rows}
-            pagination={false}
-            scroll={{ x: wc(1100), y: tableHeight }}
-            rowSelection={{
-              selectedRowKeys: selected,
-              onChange: setSelected,
-              columnWidth: wc(48),
-              getCheckboxProps: (r) => ({ disabled: r.status !== 'open' }),
-            }}
-            locale={{ emptyText: <Empty description={t('purchasing.emptyOpen')} /> }}
-          />
-        )}
-      </Flex>
-    </Card>
+                  {p && <ItemName product={p} thumb />}
+                  <Text type="secondary">
+                    {r.createdAt} · {r.supplier} · {t('purchasing.col.qty')} {r.qty}
+                  </Text>
+                </Flex>
+              </Card>
+            );
+          }}
+        />
+      }
+    >
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={rows}
+        pagination={pagination}
+        scroll={{ x: wc(1100) }}
+        rowSelection={{
+          selectedRowKeys: selected,
+          onChange: setSelected,
+          columnWidth: wc(48),
+          getCheckboxProps: (r) => ({ disabled: r.status !== 'open' }),
+        }}
+        locale={{ emptyText: <Empty description={t('purchasing.emptyOpen')} /> }}
+      />
+    </DataTableCard>
   );
 
   const ordersTab = (

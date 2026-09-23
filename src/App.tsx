@@ -78,10 +78,10 @@ const navLabelKey = (key: PageKey): MessageKey => `nav.${key}` as MessageKey;
 
 /**
  * theme.ts suggests dense for products/inventory, but at 13px the compact
- * text was too small for the team (Dickson, 2026-09-22). Every screen opens
- * comfortable; the header toggle stays for anyone who wants it denser.
+ * text was too small for the team (Dickson, 2026-09-22), and the header
+ * toggle was retired on 2026-09-23. Everything renders comfortable;
+ * moriThemeCompact stays in theme.ts for a screen that ever needs it.
  */
-const DENSE_BY_DEFAULT: PageKey[] = [];
 
 function Brand({ t, compact = false }: { t: Translate; compact?: boolean }) {
   const isMobile = useIsMobile();
@@ -229,14 +229,10 @@ function Shell({
   user,
   page,
   onNavigate,
-  dense,
-  onDensity,
 }: {
   user: StaffUser;
   page: PageKey;
   onNavigate: (key: PageKey) => void;
-  dense: boolean;
-  onDensity: (dense: boolean) => void;
 }) {
   const isMobile = useIsMobile();
   const { locale, setLocale, t } = useLocale();
@@ -303,19 +299,6 @@ function Shell({
                 options={LOCALES}
               />
             </Tooltip>
-            {!isMobile && (
-              <Tooltip title={t('app.density.hint')}>
-                <Segmented
-                  size="small"
-                  value={dense ? 'dense' : 'comfy'}
-                  onChange={(v) => onDensity(v === 'dense')}
-                  options={[
-                    { value: 'comfy', label: t('app.density.comfy') },
-                    { value: 'dense', label: t('app.density.dense') },
-                  ]}
-                />
-              </Tooltip>
-            )}
             <UserMenu user={user} t={t} />
           </Flex>
         </Flex>
@@ -362,10 +345,7 @@ function Root() {
   const { locale, setLocale } = useLocale();
   const { status, user } = useAuth();
   const [page, setPage] = useState<PageKey>('followups');
-  const [dense, setDense] = useState(false);
-
-  // On a phone useMoriTheme forces comfortable regardless of this flag.
-  const theme = useMoriTheme(dense);
+  const theme = useMoriTheme(false);
 
   // Language is a per-user setting: apply the account's choice at sign-in.
   // Switching later in the header is a session-level override until the
@@ -378,10 +358,7 @@ function Root() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const navigate = (key: PageKey) => {
-    setPage(key);
-    setDense(DENSE_BY_DEFAULT.includes(key));
-  };
+  const navigate = (key: PageKey) => setPage(key);
 
   // Data is never translated, but antd's own strings and dayjs formats follow
   // the user's locale.
@@ -398,13 +375,7 @@ function Root() {
     body = <AuthScreens />;
   } else {
     body = (
-      <Shell
-        user={user}
-        page={page}
-        onNavigate={navigate}
-        dense={dense}
-        onDensity={setDense}
-      />
+      <Shell user={user} page={page} onNavigate={navigate} />
     );
   }
 

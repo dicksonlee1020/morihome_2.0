@@ -6,27 +6,26 @@ import {
   Col,
   Empty,
   Flex,
-  Input,
   Row,
-  Segmented,
-  Select,
   Space,
   Statistic,
   Table,
   Typography,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { SearchOutlined, SwapOutlined } from '@ant-design/icons';
+import { SwapOutlined } from '@ant-design/icons';
 import { hkPackages, productOf, useOps } from '../data/ops';
 import type { Pkg } from '../data/ops';
 import { daysSince } from '../domain/clock';
 import { ESCALATION_DAYS_DEFAULT } from '../domain/derive';
 import type { LocationKey } from '../domain/types';
-import { colors, useIsMobile } from '../theme';
+import { colors } from '../theme';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
+import { FilterChip } from '../components/FilterChip';
+import { DataTableCard } from '../components/DataTableCard';
+import { useTablePagination } from '../utils/useTablePagination';
 import { ItemName, NameDisplaySwitch } from '../components/ItemName';
-import { useTableHeight } from '../utils/useTableHeight';
 import { useT } from '../i18n';
 import type { MessageKey } from '../i18n';
 import { useDensity } from '../utils/useDensity';
@@ -43,19 +42,17 @@ const LOC_LABEL: Partial<Record<LocationKey, MessageKey>> = {
   showroom: 'inventory.loc.showroom',
 };
 
-type LocFilter = 'all' | 'hkWarehouse' | 'showroom';
-type KindFilter = 'all' | 'order' | 'stock';
+type HkLocation = 'hkWarehouse' | 'showroom';
+type Kind = 'order' | 'stock';
 
 export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void }) {
   const { message } = App.useApp();
   const t = useT();
-  const isMobile = useIsMobile();
   const { wc } = useDensity();
-  const tableHeight = useTableHeight(470);
   const ops = useOps();
 
-  const [loc, setLoc] = useState<LocFilter>('all');
-  const [kind, setKind] = useState<KindFilter>('all');
+  const [locs, setLocs] = useState<HkLocation[]>([]);
+  const [kinds, setKinds] = useState<Kind[]>([]);
   const [keyword, setKeyword] = useState('');
   const [selected, setSelected] = useState<React.Key[]>([]);
 
@@ -65,9 +62,8 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
     const kw = keyword.trim().toLowerCase();
     return all
       .filter((k) => {
-        if (loc !== 'all' && k.location !== loc) return false;
-        if (kind === 'order' && !k.orderNo) return false;
-        if (kind === 'stock' && k.orderNo) return false;
+        if (locs.length > 0 && !locs.includes(k.location as HkLocation)) return false;
+        if (kinds.length > 0 && !kinds.includes(k.orderNo ? 'order' : 'stock')) return false;
         if (!kw) return true;
         const p = productOf(k.sku);
         return (
@@ -84,7 +80,9 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
         if (!!a.orderNo !== !!b.orderNo) return a.orderNo ? -1 : 1;
         return (a.arrivedAt ?? '').localeCompare(b.arrivedAt ?? '');
       });
-  }, [all, loc, kind, keyword]);
+  }, [all, locs, kinds, keyword]);
+
+  const pagination = useTablePagination(rows.length);
 
   const stats = useMemo(() => {
     const orders = new Set<string>();
@@ -163,16 +161,14 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
     },
   ];
 
-  const locOptions = [
-    { value: 'all', label: t('common.all') },
-    { value: 'hkWarehouse', label: t('inventory.loc.hkWarehouse') },
-    { value: 'showroom', label: t('inventory.loc.showroom') },
-  ];
-  const kindOptions = [
-    { value: 'all', label: t('common.all') },
-    { value: 'order', label: t('inventory.kind.order') },
-    { value: 'stock', label: t('inventory.kind.stock') },
-  ];
+  const locOptions = (['hkWarehouse', 'showroom'] as HkLocation[]).map((v) => ({
+    value: v,
+    label: <Pill tone={v === 'showroom' ? 'brand' : 'muted'}>{t(LOC_LABEL[v]!)}</Pill>,
+  }));
+  const kindOptions = (['order', 'stock'] as Kind[]).map((v) => ({
+    value: v,
+    label: t(v === 'order' ? 'inventory.kind.order' : 'inventory.kind.stock'),
+  }));
 
   return (
     <Flex vertical gap={12}>
@@ -208,94 +204,67 @@ export function InventoryPage({ onOpenRestock }: { onOpenRestock?: () => void })
         ))}
       </Row>
 
-      <Card
-        styles={{ body: { paddingTop: 12 } }}
-        title={
-          isMobile ? (
-            <Select value={loc} onChange={(v) => setLoc(v as LocFilter)} options={locOptions} style={{ width: '100%' }} />
-          ) : (
-            <Flex gap={12} wrap>
-              <Segmented value={loc} onChange={(v) => setLoc(v as LocFilter)} options={locOptions} />
-              <Segmented value={kind} onChange={(v) => setKind(v as KindFilter)} options={kindOptions} />
-            </Flex>
-          )
+      <DataTableCard
+        filters={
+          <>
+            <FilterChip label={t('inventory.col.location')} options={locOptions} value={locs} onChange={setLocs} />
+            <FilterChip label={t('inventory.filter.kind')} options={kindOptions} value={kinds} onChange={setKinds} />
+          </>
         }
-        extra={!isMobile && <Text type="secondary">{t('inventory.filtered', { n: rows.length.toLocaleString('en-HK') })}</Text>}
-      >
-        <Flex vertical gap={12}>
-          <Flex gap={8} wrap align="center">
-            <Input
-              allowClear
-              prefix={<SearchOutlined style={{ color: colors.textMuted }} />}
-              placeholder={t('inventory.search')}
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              style={{ width: isMobile ? '100%' : 300 }}
-            />
-            {isMobile && (
-              <Select value={kind} onChange={(v) => setKind(v as KindFilter)} options={kindOptions} style={{ width: '100%' }} />
-            )}
-            <NameDisplaySwitch />
-          </Flex>
-
-          {selected.length > 0 && (
-            <Flex
-              align="center"
-              justify="space-between"
-              wrap
-              gap={8}
-              style={{ padding: '6px 12px', background: colors.primarySubtle, borderRadius: 6 }}
-            >
-              <Text>{t('inventory.selected', { n: selected.length })}</Text>
-              <Space>
-                <Button size="small" icon={<SwapOutlined />} onClick={() => message.info(t('inventory.bulk.transferDemo', { n: selected.length }))}>
-                  {t('inventory.bulk.transfer')}
-                </Button>
-                <Button size="small" onClick={() => message.info(t('inventory.bulk.adjustDemo', { n: selected.length }))}>
-                  {t('inventory.bulk.adjust')}
-                </Button>
-                <Button size="small" type="text" onClick={() => setSelected([])}>{t('common.clear')}</Button>
-              </Space>
-            </Flex>
-          )}
-
-          {isMobile ? (
-            <CardList
-              items={rows}
-              rowKey={(k) => k.id}
-              renderItem={(k) => {
-                const p = productOf(k.sku);
-                return (
-                  <Card size="small" styles={{ body: { padding: '12px 16px' } }}>
-                    <Flex vertical gap={8}>
-                      <Flex justify="space-between" align="center" gap={8}>
-                        <Text style={{ fontWeight: 600, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }}>{k.packageCode}</Text>
-                        <Pill tone={k.location === 'showroom' ? 'brand' : 'muted'}>{t(LOC_LABEL[k.location] ?? 'inventory.loc.hkWarehouse')}</Pill>
-                      </Flex>
-                      {p && <ItemName product={p} thumb />}
-                      <Flex justify="space-between" align="center" gap={8}>
-                        {belongsTo(k)}
-                        {ageCell(k)}
-                      </Flex>
+        onClearFilters={locs.length > 0 || kinds.length > 0 || keyword ? () => { setLocs([]); setKinds([]); setKeyword(''); } : undefined}
+        search={{ value: keyword, onChange: setKeyword, placeholder: t('inventory.search'), width: 300 }}
+        extra={<NameDisplaySwitch />}
+        count={t('inventory.filtered', { n: rows.length.toLocaleString('en-HK') })}
+        selection={{
+          count: selected.length,
+          text: t('inventory.selected', { n: selected.length }),
+          actions: (
+            <>
+              <Button size="small" icon={<SwapOutlined />} onClick={() => message.info(t('inventory.bulk.transferDemo', { n: selected.length }))}>
+                {t('inventory.bulk.transfer')}
+              </Button>
+              <Button size="small" onClick={() => message.info(t('inventory.bulk.adjustDemo', { n: selected.length }))}>
+                {t('inventory.bulk.adjust')}
+              </Button>
+            </>
+          ),
+          onClear: () => setSelected([]),
+        }}
+        mobile={
+          <CardList
+            items={rows}
+            rowKey={(k) => k.id}
+            renderItem={(k) => {
+              const p = productOf(k.sku);
+              return (
+                <Card size="small" styles={{ body: { padding: '12px 16px' } }}>
+                  <Flex vertical gap={8}>
+                    <Flex justify="space-between" align="center" gap={8}>
+                      <Text style={{ fontWeight: 600, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }}>{k.packageCode}</Text>
+                      <Pill tone={k.location === 'showroom' ? 'brand' : 'muted'}>{t(LOC_LABEL[k.location] ?? 'inventory.loc.hkWarehouse')}</Pill>
                     </Flex>
-                  </Card>
-                );
-              }}
-            />
-          ) : (
-            <Table<Pkg>
-              rowKey="id"
-              columns={columns}
-              dataSource={rows}
-              virtual
-              scroll={{ x: wc(1000), y: tableHeight }}
-              pagination={false}
-              rowSelection={{ selectedRowKeys: selected, onChange: setSelected, columnWidth: wc(48) }}
-              locale={{ emptyText: <Empty description={t('common.empty')} /> }}
-            />
-          )}
-        </Flex>
-      </Card>
+                    {p && <ItemName product={p} thumb />}
+                    <Flex justify="space-between" align="center" gap={8}>
+                      {belongsTo(k)}
+                      {ageCell(k)}
+                    </Flex>
+                  </Flex>
+                </Card>
+              );
+            }}
+          />
+        }
+      >
+        <Table<Pkg>
+          rowKey="id"
+          columns={columns}
+          dataSource={rows}
+          pagination={pagination}
+          scroll={{ x: wc(1000) }}
+          rowSelection={{ selectedRowKeys: selected, onChange: setSelected, columnWidth: wc(48) }}
+          locale={{ emptyText: <Empty description={t('common.empty')} /> }}
+        />
+      </DataTableCard>
     </Flex>
   );
 }

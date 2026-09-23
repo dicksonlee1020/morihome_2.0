@@ -7,12 +7,9 @@ import {
   Collapse,
   Empty,
   Flex,
-  Input,
   Modal,
   Progress,
   Row,
-  Segmented,
-  Select,
   Space,
   Statistic,
   Table,
@@ -20,7 +17,7 @@ import {
   Upload,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { ExperimentOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons';
+import { ExperimentOutlined, UploadOutlined } from '@ant-design/icons';
 import {
   applyShipment,
   demoShipmentRows,
@@ -35,6 +32,9 @@ import type { LocationKey } from '../domain/types';
 import { colors, useIsMobile } from '../theme';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
+import { FilterChip } from '../components/FilterChip';
+import { DataTableCard } from '../components/DataTableCard';
+import { useTablePagination } from '../utils/useTablePagination';
 import { ItemName, NameDisplaySwitch } from '../components/ItemName';
 import { useT } from '../i18n';
 import type { MessageKey } from '../i18n';
@@ -54,7 +54,8 @@ const LOCATION_META: Partial<Record<LocationKey, { labelKey: MessageKey; tone: T
   transit: { labelKey: 'waiting.loc.transit', tone: 'success' },
 };
 
-type Filter = 'all' | 'partial' | 'none' | 'shipped';
+type WaitState = 'none' | 'partial' | 'shipped';
+const stateOf = (g: WaitingGroup): WaitState => (g.allShipped ? 'shipped' : g.shipped === 0 ? 'none' : 'partial');
 
 export function WaitingPage() {
   const { message } = App.useApp();
@@ -63,7 +64,7 @@ export function WaitingPage() {
   const { wc } = useDensity();
   const ops = useOps();
 
-  const [filter, setFilter] = useState<Filter>('all');
+  const [states, setStates] = useState<WaitState[]>([]);
   const [keyword, setKeyword] = useState('');
   const [result, setResult] = useState<ShipmentResult | null>(null);
 
@@ -72,9 +73,7 @@ export function WaitingPage() {
   const rows = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     return groups.filter((g) => {
-      if (filter === 'none' && g.shipped > 0) return false;
-      if (filter === 'partial' && (g.shipped === 0 || g.allShipped)) return false;
-      if (filter === 'shipped' && !g.allShipped) return false;
+      if (states.length > 0 && !states.includes(stateOf(g))) return false;
       if (!kw) return true;
       return (
         g.orderNo.toLowerCase().includes(kw) ||
@@ -92,7 +91,9 @@ export function WaitingPage() {
         })
       );
     });
-  }, [groups, filter, keyword]);
+  }, [groups, states, keyword]);
+
+  const pagination = useTablePagination(rows.length);
 
   const stats = useMemo(() => {
     let pkgs = 0;
@@ -242,12 +243,14 @@ export function WaitingPage() {
     </Flex>
   );
 
-  const filterOptions = [
-    { value: 'all', label: t('common.all') },
-    { value: 'none', label: t('waiting.state.none') },
-    { value: 'partial', label: t('waiting.state.partial') },
-    { value: 'shipped', label: t('waiting.state.shipped') },
-  ];
+  const stateOptions = (['none', 'partial', 'shipped'] as WaitState[]).map((v) => ({
+    value: v,
+    label: (
+      <Pill tone={v === 'shipped' ? 'success' : v === 'partial' ? 'brand' : 'muted'} dot>
+        {t(`waiting.state.${v}` as MessageKey)}
+      </Pill>
+    ),
+  }));
 
   return (
     <Flex vertical gap={12}>
@@ -285,67 +288,47 @@ export function WaitingPage() {
         ))}
       </Row>
 
-      <Card
-        styles={{ body: { paddingTop: 12 } }}
-        title={
-          isMobile ? (
-            <Select value={filter} onChange={(v) => setFilter(v as Filter)} options={filterOptions} style={{ width: '100%' }} />
-          ) : (
-            <Segmented value={filter} onChange={(v) => setFilter(v as Filter)} options={filterOptions} />
-          )
+      <DataTableCard
+        filters={
+          <FilterChip label={t('waiting.filter.state')} options={stateOptions} value={states} onChange={setStates} />
         }
-        extra={!isMobile && <Text type="secondary">{t('waiting.filtered', { n: rows.length })}</Text>}
+        onClearFilters={states.length > 0 || keyword ? () => { setStates([]); setKeyword(''); } : undefined}
+        search={{ value: keyword, onChange: setKeyword, placeholder: t('waiting.search'), width: 300 }}
+        extra={<NameDisplaySwitch />}
+        count={`${t('waiting.filtered', { n: rows.length })} · ${t('waiting.hint')}`}
+        mobile={
+          <CardList
+            items={rows}
+            rowKey={(g) => g.orderNo}
+            renderItem={(g) => (
+              <Card size="small" styles={{ body: { padding: '12px 16px' } }}>
+                <Flex vertical gap={8}>
+                  <Text style={{ fontWeight: 600 }}>{g.orderNo} · {g.customer.alias} · {g.customer.district}</Text>
+                  {progress(g)}
+                  <Text type="secondary" style={{ fontSize: 13 }}>
+                    {g.purchaseOrder.batchNo} · {g.purchaseOrder.supplier}
+                  </Text>
+                  <Collapse
+                    ghost
+                    size="small"
+                    items={[{ key: 'items', label: t('waiting.showItems', { n: g.lines.length }), children: expanded(g) }]}
+                  />
+                </Flex>
+              </Card>
+            )}
+          />
+        }
       >
-        <Flex vertical gap={12}>
-          <Flex gap={8} wrap align="center">
-            <Input
-              allowClear
-              prefix={<SearchOutlined style={{ color: colors.textMuted }} />}
-              placeholder={t('waiting.search')}
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              style={{ width: isMobile ? '100%' : 300 }}
-            />
-            <NameDisplaySwitch />
-            <Text type="secondary" style={{ fontSize: 13 }}>{t('waiting.hint')}</Text>
-          </Flex>
-
-          {isMobile ? (
-            <CardList
-              items={rows}
-              rowKey={(g) => g.orderNo}
-              renderItem={(g) => (
-                <Card size="small" styles={{ body: { padding: '12px 16px' } }}>
-                  <Flex vertical gap={8}>
-                    <Flex justify="space-between" align="center" gap={8}>
-                      <Text style={{ fontWeight: 600 }}>{g.orderNo} · {g.customer.alias} · {g.customer.district}</Text>
-                    </Flex>
-                    {progress(g)}
-                    <Text type="secondary" style={{ fontSize: 13 }}>
-                      {g.purchaseOrder.batchNo} · {g.purchaseOrder.supplier}
-                    </Text>
-                    <Collapse
-                      ghost
-                      size="small"
-                      items={[{ key: 'items', label: t('waiting.showItems', { n: g.lines.length }), children: expanded(g) }]}
-                    />
-                  </Flex>
-                </Card>
-              )}
-            />
-          ) : (
-            <Table<WaitingGroup>
-              rowKey="orderNo"
-              columns={columns}
-              dataSource={rows}
-              pagination={false}
-              scroll={{ x: wc(1100) }}
-              expandable={{ expandedRowRender: expanded, expandRowByClick: true }}
-              locale={{ emptyText: <Empty description={t('common.empty')} /> }}
-            />
-          )}
-        </Flex>
-      </Card>
+        <Table<WaitingGroup>
+          rowKey="orderNo"
+          columns={columns}
+          dataSource={rows}
+          pagination={pagination}
+          scroll={{ x: wc(1100) }}
+          expandable={{ expandedRowRender: expanded, expandRowByClick: true }}
+          locale={{ emptyText: <Empty description={t('common.empty')} /> }}
+        />
+      </DataTableCard>
 
       <Modal
         title={t('waiting.upload.resultTitle')}

@@ -8,10 +8,7 @@ import {
   Dropdown,
   Empty,
   Flex,
-  Input,
   Row,
-  Segmented,
-  Select,
   Space,
   Statistic,
   Table,
@@ -25,7 +22,6 @@ import {
   MoreOutlined,
   PlusOutlined,
   ReloadOutlined,
-  SearchOutlined,
   TruckOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -38,8 +34,11 @@ import {
 } from '../data/orders';
 import { colors, useIsMobile } from '../theme';
 import { orderQty, orderTotal } from '../types';
-import type { Order, OrderStatus } from '../types';
+import type { Order, OrderStatus, PaymentStatus } from '../types';
 import { Pill } from '../components/Pill';
+import { FilterChip } from '../components/FilterChip';
+import { DataTableCard } from '../components/DataTableCard';
+import { useTablePagination } from '../utils/useTablePagination';
 import { useT } from '../i18n';
 import { OrderCards } from '../components/OrderCards';
 
@@ -53,7 +52,6 @@ const nowrap = { whiteSpace: 'nowrap' } as const;
 const money = (n: number) =>
   `HK$${n.toLocaleString('en-HK', { maximumFractionDigits: 0 })}`;
 
-type StatusFilter = OrderStatus | 'all';
 
 export function OrdersPage() {
   const { message } = App.useApp();
@@ -61,8 +59,8 @@ export function OrdersPage() {
   const t = useT();
 
   const [data] = useState<Order[]>(seedOrders);
-  const [status, setStatus] = useState<StatusFilter>('all');
-  const [payment, setPayment] = useState<string>('all');
+  const [statuses, setStatuses] = useState<OrderStatus[]>([]);
+  const [payments, setPayments] = useState<PaymentStatus[]>([]);
   const [keyword, setKeyword] = useState('');
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
   const [selected, setSelected] = useState<React.Key[]>([]);
@@ -78,8 +76,8 @@ export function OrdersPage() {
   const rows = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     return data.filter((o) => {
-      if (status !== 'all' && o.status !== status) return false;
-      if (payment !== 'all' && o.payment !== payment) return false;
+      if (statuses.length > 0 && !statuses.includes(o.status)) return false;
+      if (payments.length > 0 && !payments.includes(o.payment)) return false;
       if (range) {
         const created = dayjs(o.createdAt);
         if (created.isBefore(range[0], 'day') || created.isAfter(range[1], 'day'))
@@ -93,7 +91,9 @@ export function OrdersPage() {
         o.items.some((i) => i.name.toLowerCase().includes(kw))
       );
     });
-  }, [data, status, payment, keyword, range]);
+  }, [data, statuses, payments, keyword, range]);
+
+  const pagination = useTablePagination(rows.length);
 
   const stats = useMemo(() => {
     const live = data.filter((o) => o.status !== 'cancelled');
@@ -244,13 +244,26 @@ export function OrdersPage() {
     },
   ];
 
-  const segmentOptions = [
-    { label: `${t('common.all')} ${counts.all}`, value: 'all' },
-    ...STATUS_ORDER.map((s) => ({
-      label: `${t(STATUS_META[s].labelKey)} ${counts[s]}`,
-      value: s,
-    })),
-  ];
+  const statusOptions = STATUS_ORDER.map((v) => ({
+    value: v,
+    label: (
+      <Flex justify="space-between" gap={12} style={{ flexGrow: 1 }}>
+        <Pill color={STATUS_META[v].color} bg={STATUS_META[v].bg} dot>{t(STATUS_META[v].labelKey)}</Pill>
+        <Text type="secondary">{counts[v]}</Text>
+      </Flex>
+    ),
+  }));
+  const paymentOptions = (Object.keys(PAYMENT_META) as PaymentStatus[]).map((v) => ({
+    value: v,
+    label: <Pill color={PAYMENT_META[v].color} bg={PAYMENT_META[v].bg} dot>{t(PAYMENT_META[v].labelKey)}</Pill>,
+  }));
+  const filtered = statuses.length > 0 || payments.length > 0 || range != null || keyword !== '';
+  const clearFilters = () => {
+    setStatuses([]);
+    setPayments([]);
+    setRange(null);
+    setKeyword('');
+  };
 
   return (
     <Flex vertical gap={16}>
@@ -291,139 +304,67 @@ export function OrdersPage() {
         ))}
       </Row>
 
-      <Card
-        styles={{ body: { paddingTop: 12 } }}
-        title={
-          isMobile ? (
-            <Select
-              value={status}
-              onChange={(v) => setStatus(v as StatusFilter)}
-              options={segmentOptions}
-              style={{ width: '100%' }}
+      <DataTableCard
+        filters={
+          <>
+            <FilterChip label={t('orders.filter.status')} options={statusOptions} value={statuses} onChange={setStatuses} />
+            <FilterChip label={t('orders.filter.payment')} options={paymentOptions} value={payments} onChange={setPayments} />
+            <DatePicker.RangePicker
+              value={range}
+              onChange={(v) => setRange(v as [Dayjs, Dayjs] | null)}
+              placeholder={[t('orders.dateFrom'), t('orders.dateTo')]}
+              style={{ width: isMobile ? '100%' : 260 }}
             />
-          ) : (
-            <Segmented
-              value={status}
-              onChange={(v) => setStatus(v as StatusFilter)}
-              options={segmentOptions}
-            />
-          )
+          </>
         }
+        onClearFilters={filtered ? clearFilters : undefined}
+        search={{ value: keyword, onChange: setKeyword, placeholder: t('orders.search'), width: 280 }}
         extra={
-          !isMobile && (
-            <Space>
-              <Tooltip title={t('common.refresh')}>
-                <Button icon={<ReloadOutlined />} onClick={() => message.success(t('common.refreshed'))} />
-              </Tooltip>
-              <Button icon={<EllipsisOutlined />} />
-            </Space>
-          )
+          <Space>
+            <Tooltip title={t('common.refresh')}>
+              <Button icon={<ReloadOutlined />} onClick={() => message.success(t('common.refreshed'))} />
+            </Tooltip>
+            <Button icon={<EllipsisOutlined />} />
+          </Space>
         }
-      >
-        <Flex gap={12} wrap style={{ marginBottom: 16 }}>
-          <Input
-            allowClear
-            prefix={<SearchOutlined style={{ color: colors.textMuted }} />}
-            placeholder={t('orders.search')}
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            style={{ width: isMobile ? '100%' : 300 }}
-          />
-          <Select
-            value={payment}
-            onChange={setPayment}
-            style={{ width: isMobile ? '100%' : 150 }}
-            options={[
-              { value: 'all', label: t('orders.payment.all') },
-              ...Object.entries(PAYMENT_META).map(([v, m]) => ({
-                value: v,
-                label: t(m.labelKey),
-              })),
-            ]}
-          />
-          <DatePicker.RangePicker
-            value={range}
-            onChange={(v) => setRange(v as [Dayjs, Dayjs] | null)}
-            placeholder={[t('orders.dateFrom'), t('orders.dateTo')]}
-            style={{ width: isMobile ? '100%' : 260 }}
-          />
-        </Flex>
-
-        {selected.length > 0 && (
-          <Flex
-            align="center"
-            justify="space-between"
-            wrap
-            gap={8}
-            style={{
-              marginBottom: 16,
-              padding: '8px 12px',
-              background: colors.primarySubtle,
-              borderRadius: 6,
-            }}
-          >
-            <Text>{t('orders.selected', { n: selected.length })}</Text>
-            <Space>
+        count={`${t('orders.summary.count', { n: rows.length })} · ${t('orders.summary.total', { amount: money(filteredTotal) })}`}
+        selection={{
+          count: selected.length,
+          text: t('orders.selected', { n: selected.length }),
+          actions: (
+            <>
               <Button size="small" icon={<TruckOutlined />} onClick={() => message.success(t('orders.bulk.scheduled', { n: selected.length }))}>
                 {t('orders.bulk.schedule')}
               </Button>
               <Button size="small" onClick={() => message.success(t('common.exported'))}>
                 {t('orders.bulk.export')}
               </Button>
-              <Button size="small" type="text" onClick={() => setSelected([])}>
-                {t('common.clear')}
-              </Button>
-            </Space>
-          </Flex>
-        )}
-
-        {isMobile ? (
-          <OrderCards orders={rows} money={money} isOverdue={isOverdue} />
-        ) : (
-          <Table<Order>
-            rowKey="id"
-            columns={columns}
-            dataSource={rows}
-            size="large"
-            scroll={{ x: 1100 }}
-            rowSelection={{
-              selectedRowKeys: selected,
-              onChange: setSelected,
-              getCheckboxProps: (o) => ({ disabled: o.status === 'cancelled' }),
-            }}
-            expandable={{
-              expandedRowRender: (o) => <OrderDetail order={o} />,
-              rowExpandable: () => true,
-            }}
-            locale={{
-              emptyText: <Empty description={t('orders.empty')} />,
-            }}
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              showTotal: (total, r) => t('orders.pageTotal', { from: r[0], to: r[1], total }),
-            }}
-            summary={() =>
-              rows.length > 0 ? (
-                <Table.Summary>
-                  <Table.Summary.Row>
-                    <Table.Summary.Cell index={0} colSpan={columns.length + 2}>
-                      <Flex align="center" justify="space-between" gap={12}>
-                        <Text type="secondary">
-                          {t('orders.summary.count', { n: rows.length })}
-                        </Text>
-                        <Text style={{ fontWeight: 600 }}>
-                          {t('orders.summary.total', { amount: money(filteredTotal) })}
-                        </Text>
-                      </Flex>
-                    </Table.Summary.Cell>
-                  </Table.Summary.Row>
-                </Table.Summary>
-              ) : null
-            }
-          />
-        )}
-      </Card>
+            </>
+          ),
+          onClear: () => setSelected([]),
+        }}
+        mobile={<OrderCards orders={rows} money={money} isOverdue={isOverdue} />}
+      >
+        <Table<Order>
+          rowKey="id"
+          columns={columns}
+          dataSource={rows}
+          scroll={{ x: 1100 }}
+          rowSelection={{
+            selectedRowKeys: selected,
+            onChange: setSelected,
+            getCheckboxProps: (o) => ({ disabled: o.status === 'cancelled' }),
+          }}
+          expandable={{
+            expandedRowRender: (o) => <OrderDetail order={o} />,
+            rowExpandable: () => true,
+          }}
+          locale={{
+            emptyText: <Empty description={t('orders.empty')} />,
+          }}
+          pagination={pagination}
+        />
+      </DataTableCard>
     </Flex>
   );
 }
