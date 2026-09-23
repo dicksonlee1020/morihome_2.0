@@ -39,6 +39,7 @@
 - scroll-x table：首欄 fixed left、操作 fixed right
 - 長文字欄一律 ellipsis + Tooltip；數字欄右對齊 + `font-variant-numeric: tabular-nums`
 - 高頻動作（安排送貨）做 row 直接掣；「⋮」只放低頻動作
+- **Row click = 右邊 side peek**（詳見 docs/design/side-peek-spec.md）。時間線係 AuditLog／搬運單事件／待辦／留言嘅即時 union，唔准另起歷史表；推導狀態只以「事件 → 後果」出現
 - status → colour 係單一 theme mapping，全 app 引用，唔准逐頁自己配色
 - 每個 table 有 loading skeleton 同 empty state
 - 手機（<768px）：主列表轉卡片式；密集模式喺手機停用；觸控目標 ≥48px

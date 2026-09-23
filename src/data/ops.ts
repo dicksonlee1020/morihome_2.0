@@ -2,7 +2,8 @@ import { useSyncExternalStore } from 'react';
 import { packagesPerUnit, products, stockedProducts } from './catalog';
 import { DEMO_TODAY } from '../domain/clock';
 import { IN_HK, UPSTREAM } from '../domain/types';
-import type { LocationKey, StockMove, TimeSlot } from '../domain/types';
+import type { Activity, LocationKey, StockMove, TimeSlot } from '../domain/types';
+import type { FieldClass } from '../config/permissions';
 import type { Product } from '../types';
 
 /* =================================================================
@@ -148,12 +149,65 @@ export interface ShipmentResult {
   unmatched: { row: ShipmentRow; reason: UnmatchedReason }[];
 }
 
+/* ------------------------------------------------ timeline sources (side-peek §3.1) */
+
+export type PeekModel = 'order' | 'purchaseOrder' | 'package' | 'product';
+
+/** side-peek-spec §5 Comment */
+export interface Comment {
+  id: string;
+  model: PeekModel;
+  recordId: string;
+  authorId: string;
+  body: string;
+  mentions: string[];
+  attachments: string[];
+  createdAt: string;
+  editedAt: string | null;
+  deletedAt: string | null;
+}
+
+/**
+ * rbac-spec §9.7 AuditLog（append-only）。欄位變更、審批、附件、Shopify 同步都係
+ * AuditLog 事件；含 COST / FINANCE_DETAIL 欄位嘅事件帶 fieldClass，序列化層剝除。
+ */
+export type AuditEvent =
+  | { event: 'fieldChange'; field: string; from: string; to: string; fieldClass?: FieldClass }
+  | { event: 'approval'; approvalType: string; decision: 'approved' | 'rejected'; detail: string }
+  | { event: 'attachment'; fileName: string; fieldClass?: FieldClass }
+  | { event: 'shopifySync'; detail: string; field?: string; from?: string; to?: string };
+
+export interface AuditEntry {
+  id: string;
+  ts: string;
+  userId: string;
+  model: PeekModel;
+  recordId: string;
+  payload: AuditEvent;
+}
+
+/** 移動事件寫入時已由推導引擎計好嘅後果（§3.1：唔係 render 時重算） */
+export interface MoveConsequence {
+  moveId: string;
+  ts: string;
+  actorId: string;
+  orderNo: string;
+  /** 例：「包件 3/3 在港 → 可安排送貨」 */
+  inHk: number;
+  total: number;
+  consequence: 'readyToSchedule' | 'partial' | 'delivered' | 'shipped' | 'transit' | null;
+}
+
 interface OpsState {
   orders: SalesOrder[];
   requirements: Requirement[];
   purchaseOrders: PurchaseOrder[];
   packages: Pkg[];
   moves: StockMove[];
+  moveConsequences: MoveConsequence[];
+  activities: Activity[];
+  comments: Comment[];
+  audit: AuditEntry[];
   seq: number;
 }
 
@@ -202,7 +256,7 @@ const orderable = products.filter((p) => p.status === 'active' && p.sourcingType
 
 function buildFixtures(): OpsState {
   const rng = mulberry32(20260923);
-  const state: OpsState = { orders: [], requirements: [], purchaseOrders: [], packages: [], moves: [], seq: 1 };
+  const state: OpsState = { orders: [], requirements: [], purchaseOrders: [], packages: [], moves: [], moveConsequences: [], activities: [], comments: [], audit: [], seq: 1 };
   let orderSeq = 3480;
   let reqSeq = 1;
   let pkgSeq = 1;
@@ -440,6 +494,81 @@ function buildFixtures(): OpsState {
     };
     make(p.stock.main, 'hkWarehouse');
     make(p.stock.shop, 'showroom');
+  }
+
+  /* ---- side-peek §3.1：時間線來源。移動後果喺「事件發生時」計好寫入 payload ---- */
+  const at = (date: string, hhmm: string) => `${date}T${hhmm}:00+08:00`;
+  const ACTORS: Record<string, string> = { purchaseReceipt: 'u-alex', transit: 'u-alex', arrivalQc: 'u-alex', deliverToCustomer: 'u-hang', openingBalance: 'u-alex' };
+  const TIMES: Record<string, string> = { purchaseReceipt: '11:20', transit: '09:05', arrivalQc: '15:40', deliverToCustomer: '14:32' };
+  for (const mv of state.moves) {
+    if (mv.type === 'openingBalance') continue;
+    const pkgIds = new Set(mv.packageUnitIds);
+    const orderNos = [...new Set(state.packages.filter((k) => pkgIds.has(k.id)).map((k) => k.orderNo).filter((x): x is string => !!x))];
+    for (const orderNo of orderNos) {
+      const all = state.packages.filter((k) => k.orderNo === orderNo);
+      // 事件當時嘅位置：呢張 move 之後（fixture 按時序生成，所以計「到此 move 為止」嘅狀態）
+      const doneUpTo = state.moves.filter((m) => m.doneDate! <= mv.doneDate! && m.id <= mv.id);
+      const loc = new Map<string, LocationKey>(all.map((k) => [k.id, 'supplier' as LocationKey]));
+      for (const m of doneUpTo) for (const id of m.packageUnitIds) if (loc.has(id)) loc.set(id, m.to);
+      const inHk = [...loc.values()].filter((l) => IN_HK.includes(l)).length;
+      const atCustomer = [...loc.values()].filter((l) => l === 'customer').length;
+      const consequence =
+        mv.type === 'deliverToCustomer' ? (atCustomer === all.length ? 'delivered' : 'partial')
+        : mv.type === 'arrivalQc' ? (inHk === all.length ? 'readyToSchedule' : null)
+        : mv.type === 'transit' ? 'transit' : 'shipped';
+      state.moveConsequences.push({ moveId: mv.id, ts: at(mv.doneDate!, TIMES[mv.type] ?? '10:00'), actorId: ACTORS[mv.type] ?? 'u-alex', orderNo, inHk: mv.type === 'deliverToCustomer' ? atCustomer : inHk, total: all.length, consequence });
+    }
+  }
+
+  let auditSeq = 1;
+  let commentSeq = 1;
+  let actSeq = 1;
+  const audit = (ts: string, userId: string, recordId: string, payload: AuditEvent) =>
+    state.audit.push({ id: `AL-${String(auditSeq++).padStart(5, '0')}`, ts, userId, model: 'order', recordId, payload });
+  const comment = (createdAt: string, authorId: string, recordId: string, body: string, mentions: string[] = []) =>
+    state.comments.push({ id: `CM-${String(commentSeq++).padStart(5, '0')}`, model: 'order', recordId, authorId, body, mentions, attachments: [], createdAt, editedAt: null, deletedAt: null });
+
+  for (const o of state.orders) {
+    const total = o.lines.reduce((n, l) => n + l.qty * l.price, 0);
+    // 每張單都由 Shopify 同步建立（Q16 未答之前訂單入口一律係 Shopify）
+    audit(at(o.createdAt, '10:02'), 'u-system', o.orderNo, { event: 'shopifySync', detail: `#${o.orderNo.slice(2)} · HK$${total.toLocaleString('en-HK')}` });
+    if (o.payment !== 'unpaid') audit(at(o.createdAt, '10:02'), 'u-system', o.orderNo, { event: 'shopifySync', detail: 'deposit', field: 'payment', from: 'unpaid', to: 'deposit' });
+    // 待辦：待約嘅單有一條未完成 Activity；已約嘅有一條已完成（feedback = scheduled）
+    const units = state.packages.filter((k) => k.orderNo === o.orderNo);
+    const allHk = units.length > 0 && units.every((k) => IN_HK.includes(k.location));
+    if (allHk && !o.delivery.scheduledDate) {
+      const arrived = units.map((k) => k.arrivedAt!).sort()[0];
+      const due = daysAgo(Math.max(-2, Math.min(6, Math.floor((TODAY_MS - Date.parse(arrived)) / DAY) - 2)));
+      state.activities.push({ id: `ACT-${String(actSeq++).padStart(4, '0')}`, kind: 'scheduleDelivery', orderId: o.orderNo, dueDate: due, owner: 'Alex', feedback: null, note: '', doneAt: null, nextActivityId: null, seq: 1 });
+    } else if (o.delivery.scheduledDate) {
+      const doneAt = daysAgo(Math.max(1, Math.floor((TODAY_MS - Date.parse(o.delivery.scheduledDate)) / DAY) + 3));
+      state.activities.push({ id: `ACT-${String(actSeq++).padStart(4, '0')}`, kind: 'scheduleDelivery', orderId: o.orderNo, dueDate: doneAt, owner: 'Alex', feedback: 'scheduled', note: '', doneAt, nextActivityId: null, seq: 1 });
+    }
+  }
+
+  // 展示用嘅事件：最新 8 張單（訂單頁一開就見）+ 每種 §3.1 事件都有
+  const newest = [...state.orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 8);
+  newest.forEach((o, i) => {
+    const d = o.createdAt;
+    // 同一人 5 分鐘內連續改 3 個欄位 → 時間線合併做一條
+    audit(at(d, '11:40'), 'u-wilson', o.orderNo, { event: 'fieldChange', field: 'customerRequestedDate', from: daysAgo(-6), to: daysAgo(-19) });
+    audit(at(d, '11:42'), 'u-wilson', o.orderNo, { event: 'fieldChange', field: 'customerRequestedNote', from: '', to: '星期六日先收' });
+    audit(at(d, '11:44'), 'u-wilson', o.orderNo, { event: 'fieldChange', field: 'channel', from: 'shopify', to: 'whatsapp' });
+    // @mention 留言
+    comment(at(d, '11:52'), 'u-wilson', o.orderNo, '@Alex 客話可能改地址，約之前問清楚', ['u-alex']);
+    // COST 欄位變更：sales / ops / content / driver 整條唔見
+    audit(at(daysAgo(Math.max(0, Math.floor((TODAY_MS - Date.parse(d)) / DAY) - 1)), '16:10'), 'u-manman', o.orderNo, { event: 'fieldChange', field: 'costPrice', from: '¥1,559.83', to: '¥1,612.00', fieldClass: 'COST' });
+    if (i % 2 === 0) audit(at(d, '17:25'), 'u-manman', o.orderNo, { event: 'attachment', fileName: 'FPS-入數截圖.jpg', fieldClass: 'FINANCE_DETAIL' });
+    if (i % 3 === 0) audit(at(daysAgo(0), '09:30'), 'u-system', o.orderNo, { event: 'shopifySync', detail: 'amount', field: 'amount', from: 'HK$9,240', to: 'HK$9,560' });
+    if (i === 1) audit(at(daysAgo(0), '10:15'), 'u-ocean', o.orderNo, { event: 'approval', approvalType: 'writeOff', decision: 'approved', detail: '1' });
+    if (i === 2) comment(at(daysAgo(0), '08:55'), 'u-alex', o.orderNo, '今日先 call 客確認上樓梯闊度，下午覆。');
+  });
+  // 待約單：打唔通 → 自動排下次（Activity 鏈）
+  const toSchedule = state.activities.filter((a) => !a.doneAt).slice(0, 3);
+  for (const a of toSchedule) {
+    const prev: Activity = { ...a, id: `${a.id}-p`, feedback: 'unreachable', doneAt: daysAgo(1), nextActivityId: a.id, dueDate: daysAgo(1) };
+    state.activities.push(prev);
+    a.seq = 2;
   }
 
   state.seq = state.purchaseOrders.length + 1;
@@ -754,6 +883,77 @@ export function parseShipmentText(text: string): ShipmentRow[] {
     };
   });
 }
+
+/* ---------------------------------------------- side-peek actions (§2, §3.3) */
+
+export function addComment(model: PeekModel, recordId: string, authorId: string, body: string, mentions: string[]): Comment {
+  const c: Comment = {
+    id: `CM-${String(state.comments.length + 1).padStart(5, '0')}`,
+    model,
+    recordId,
+    authorId,
+    body,
+    mentions,
+    attachments: [],
+    createdAt: nowIso(),
+    editedAt: null,
+    deletedAt: null,
+  };
+  commit({ ...state, comments: [...state.comments, c] });
+  return c;
+}
+
+/** 摘要欄 inline edit：只改可改欄位，每個欄位一條 AuditLog（時間線會按 5 分鐘合併） */
+export function updateOrder(orderNo: string, patch: Partial<Pick<SalesOrder, 'customerRequestedDate' | 'customerRequestedNote' | 'channel' | 'assignee'>>, actorId: string) {
+  const o = state.orders.find((x) => x.orderNo === orderNo);
+  if (!o) return;
+  const entries: AuditEntry[] = [];
+  let seq = state.audit.length + 1;
+  for (const [field, to] of Object.entries(patch) as [keyof typeof patch, string | null][]) {
+    const from = o[field] ?? '';
+    if ((to ?? '') === from) continue;
+    entries.push({ id: `AL-${String(seq++).padStart(5, '0')}`, ts: nowIso(), userId: actorId, model: 'order', recordId: orderNo, payload: { event: 'fieldChange', field, from: String(from), to: String(to ?? '') } });
+  }
+  if (entries.length === 0) return;
+  commit({
+    ...state,
+    orders: state.orders.map((x) => (x.orderNo === orderNo ? { ...x, ...patch } : x)),
+    audit: [...state.audit, ...entries],
+  });
+}
+
+/** 待辦條「完成」：關閉 Activity（feedback = scheduled 由約期動作寫；呢度係一般完成） */
+export function completeActivity(id: string, feedback: Activity['feedback'] = null) {
+  commit({ ...state, activities: state.activities.map((a) => (a.id === id ? { ...a, doneAt: DEMO_TODAY, feedback } : a)) });
+}
+
+/** 待辦條「改期」：關舊開新，鏈式接續（§2.5 nextActivityId），舊嘅唔改 */
+export function rescheduleActivity(id: string, due: string, note: string, feedback: 'customerPostponed' | 'unreachable' = 'customerPostponed'): Activity | null {
+  const a = state.activities.find((x) => x.id === id);
+  if (!a || a.doneAt) return null;
+  const next: Activity = { ...a, id: `${a.id}-r${a.seq + 1}`, dueDate: due, note, seq: a.seq + 1, feedback: null, doneAt: null, nextActivityId: null };
+  commit({
+    ...state,
+    activities: [...state.activities.map((x) => (x.id === id ? { ...x, doneAt: DEMO_TODAY, feedback, nextActivityId: next.id } : x)), next],
+  });
+  return next;
+}
+
+/** 「已約」：寫 scheduledDate（送貨單欄位），關閉待辦 —— 狀態由推導轉「已約」 */
+export function scheduleOrder(orderNo: string, date: string, slot: TimeSlot, actorId: string) {
+  const o = state.orders.find((x) => x.orderNo === orderNo);
+  if (!o) return;
+  const entry: AuditEntry = { id: `AL-${String(state.audit.length + 1).padStart(5, '0')}`, ts: nowIso(), userId: actorId, model: 'order', recordId: orderNo, payload: { event: 'fieldChange', field: 'scheduledDate', from: o.delivery.scheduledDate ?? '', to: `${date} ${slot}` } };
+  commit({
+    ...state,
+    orders: state.orders.map((x) => (x.orderNo === orderNo ? { ...x, delivery: { ...x.delivery, scheduledDate: date, timeSlot: slot } } : x)),
+    activities: state.activities.map((a) => (a.orderId === orderNo && !a.doneAt ? { ...a, doneAt: DEMO_TODAY, feedback: 'scheduled' as const } : a)),
+    audit: [...state.audit, entry],
+  });
+}
+
+/** 示範時鐘：今日 + 而家嘅時分（DEMO_TODAY 固定，時間跟真時鐘） */
+export const nowIso = () => `${DEMO_TODAY}T${new Date().toTimeString().slice(0, 8)}+08:00`;
 
 /* -------------------------------------------------------------- derived */
 

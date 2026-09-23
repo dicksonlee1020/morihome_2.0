@@ -34,3 +34,13 @@ CLAUDE.md 規定：新需求唔准直接加落 code，先記入呢度，等 scop
 | A-03 | 包件喺上載訂貨確認時建立（未派碼），發貨表對到先派碼；Q12 / Q17 / Q18 未答 | Alex |
 | A-04 | 出街名暫用廠家品名簡轉繁，真名要由 Shopify 同步層嚟 | — |
 | A-05 | 售價 = 人民幣成本 × 1.08 × 2.75（Q5 priceMultiplier 用途未確認） | Kengi |
+
+## Side peek（2026-09-23）未做部分
+
+| # | 事項 | 狀態 |
+|---|---|---|
+| P-01 | 其餘 model config：採購單／送貨單／包件／流水對數／商品／客戶（§6） | 等訂單頁 review 後逐個推 |
+| P-02 | 庫存等候頁：保留 collapse，click 行文字開 peek（§7） | 等 review |
+| P-03 | 留言改 / 刪（15 分鐘、soft delete、落 AuditLog）、@mention 鈴鐺通知（舊 Notification model 要接返） | 未做 |
+| P-04 | 附件真上傳（auth endpoint）、留言附相 / PDF / Excel | 未做 |
+| P-05 | Q28 留言只限某角色可見、Q29 WhatsApp 對話入時間線 | 等 Ocean |

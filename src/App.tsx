@@ -50,6 +50,8 @@ import { AuthProvider, canOpen, landingPage, useAuth } from './auth';
 import type { PageKey, StaffUser } from './auth';
 import { Pill } from './components/Pill';
 import { Logo } from './components/Logo';
+import { PeekProvider } from './peek/context';
+import { RecordPeek } from './peek/RecordPeek';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -256,7 +258,7 @@ function Shell({
   };
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', ['--mori-primary-subtle' as string]: colors.primarySubtle, ['--mori-bg-hover' as string]: colors.bgHover }}>
       <Header
         style={{
           paddingInline: 16,
@@ -336,6 +338,7 @@ function Shell({
         <Content style={{ padding: isMobile ? 12 : 24 }}>
           <PageBody page={page} user={user} t={t} onNavigate={go} />
         </Content>
+        <RecordPeek />
       </Layout>
     </Layout>
   );
@@ -375,7 +378,9 @@ function Root() {
     body = <AuthScreens />;
   } else {
     body = (
-      <Shell user={user} page={page} onNavigate={navigate} />
+      <PeekProvider>
+        <Shell user={user} page={page} onNavigate={navigate} />
+      </PeekProvider>
     );
   }
 

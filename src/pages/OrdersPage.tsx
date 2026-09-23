@@ -32,12 +32,12 @@ import { BUCKET_META } from '../data/buckets';
 import { CardList } from '../components/CardList';
 import { FilterChip } from '../components/FilterChip';
 import { DataTableCard } from '../components/DataTableCard';
-import { ItemName } from '../components/ItemName';
 import { useTablePagination } from '../utils/useTablePagination';
 import { useMockLoading } from '../utils/useMockLoading';
 import { useT } from '../i18n';
 import type { MessageKey } from '../i18n';
 import { useAuth } from '../auth';
+import { usePeek, useRegisterPeekList } from '../peek/hooks';
 import { can, canSee } from '../config/permissions';
 import type { Tone } from '../utils/tones';
 
@@ -147,6 +147,11 @@ export function OrdersPage() {
 
   const loading = useMockLoading();
   const pagination = useTablePagination(rows.length);
+
+  // side-peek §1：row click 開右邊 peek；↑↓ 跟而家顯示緊嘅順序
+  const peek = usePeek();
+  useRegisterPeekList('order', rows.map((r) => r.order.orderNo));
+  const activeId = peek.target?.model === 'order' ? peek.target.id : null;
 
   const stats = useMemo(() => {
     const yesterday = today().subtract(1, 'day').format('YYYY-MM-DD');
@@ -297,7 +302,7 @@ export function OrdersPage() {
       width: 150,
       fixed: 'right',
       render: (_, r) => (
-        <Flex gap={4} justify="flex-end">
+        <Flex gap={4} justify="flex-end" onClick={(e) => e.stopPropagation()}>
           {mayExecute && r.bucket === 'toSchedule' && (
             <Button size="small" icon={<CalendarOutlined />} onClick={() => message.info(t('orders.scheduleDemo', { order: r.order.orderNo }))}>
               {t('orders.action.schedule')}
@@ -334,28 +339,6 @@ export function OrdersPage() {
     label: <Pill tone={PAYMENT_META[v].tone} dot>{t(PAYMENT_META[v].labelKey)}</Pill>,
   }));
   const channelOptions = (Object.keys(CHANNEL_KEY) as Channel[]).map((v) => ({ value: v, label: t(CHANNEL_KEY[v]) }));
-
-  const detail = (r: Row) => (
-    <Flex vertical gap={8} style={{ padding: '4px 8px' }}>
-      <Flex gap={24} wrap>
-        <Text type="secondary">{t('orders.detail.created', { date: fmtDate(r.order.createdAt, 'detail') })}</Text>
-        <Text type="secondary">{t('orders.detail.requested', { date: r.order.customerRequestedDate ? fmtDate(r.order.customerRequestedDate, 'detail') : '—' })}</Text>
-        {r.order.customerRequestedNote && <Text type="secondary">{t('orders.detail.note', { note: r.order.customerRequestedNote })}</Text>}
-        <Text type="secondary">{t('orders.detail.assignee', { name: r.order.assignee })}</Text>
-      </Flex>
-      {r.order.lines.map((l) => {
-        const p = productOf(l.sku);
-        return (
-          <Flex key={l.id} align="center" justify="space-between" gap={12}>
-            {p ? <ItemName product={p} thumb /> : <Text>{l.sku}</Text>}
-            <Text style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-              × {l.qty} · {money(l.qty * l.price)}
-            </Text>
-          </Flex>
-        );
-      })}
-    </Flex>
-  );
 
   return (
     <Flex vertical gap={12}>
@@ -432,7 +415,7 @@ export function OrdersPage() {
             renderItem={(r) => {
               const m = BUCKET_META[r.bucket];
               return (
-                <Card size="small" styles={{ body: { padding: '12px 16px' } }}>
+                <Card size="small" styles={{ body: { padding: '12px 16px' } }} onClick={() => peek.open({ model: 'order', id: r.order.orderNo })}>
                   <Flex vertical gap={8}>
                     <Flex justify="space-between" align="center" gap={8}>
                       <Text style={{ fontWeight: 600 }}>{r.order.orderNo} · {r.order.customer.alias} · {r.order.customer.district}</Text>
@@ -443,7 +426,7 @@ export function OrdersPage() {
                     </Text>
                     {r.alerts.length > 0 && <Flex gap={4} wrap>{r.alerts.map(alertChip)}</Flex>}
                     {mayExecute && r.bucket === 'toSchedule' && (
-                      <Button icon={<CalendarOutlined />} onClick={() => message.info(t('orders.scheduleDemo', { order: r.order.orderNo }))}>
+                      <Button icon={<CalendarOutlined />} onClick={(e) => { e.stopPropagation(); message.info(t('orders.scheduleDemo', { order: r.order.orderNo })); }}>
                         {t('orders.action.schedule')}
                       </Button>
                     )}
@@ -461,8 +444,9 @@ export function OrdersPage() {
           dataSource={rows}
           scroll={{ x: 1500 }}
           pagination={pagination}
-          rowSelection={{ selectedRowKeys: selected, onChange: setSelected, columnWidth: 48 }}
-          expandable={{ expandedRowRender: detail }}
+          rowSelection={{ selectedRowKeys: selected, onChange: setSelected, columnWidth: 48, onCell: () => ({ onClick: (e) => e.stopPropagation() }) }}
+          rowClassName={(r) => (r.order.orderNo === activeId ? 'mori-row-active' : 'mori-row-clickable')}
+          onRow={(r) => ({ onClick: () => peek.open({ model: 'order', id: r.order.orderNo }) })}
           locale={{ emptyText: <Empty description={t('orders.empty')} /> }}
         />
       </DataTableCard>

@@ -21,3 +21,7 @@ body,
   border: 3px solid transparent;
   background-clip: content-box;
 }
+
+/* side-peek §1：peek 開住時該行高亮；顏色由 App 用 theme token 設 CSS 變數，唔散落 hex */
+.mori-row-clickable > td { cursor: pointer; }
+.mori-row-active > td { background: var(--mori-primary-subtle) !important; }

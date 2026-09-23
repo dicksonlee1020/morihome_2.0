@@ -117,7 +117,7 @@ escalation: 可安排送貨 且 未約 且 在港日數 ≥ 門檻(預設14, 設
 - **儀表板**（老闆）：數字可點入，唔要趨勢圖
 - 查閱層：訂單（詳情一頁睇晒）、待送貨報表、採購、倉庫（收貨驗貨/在庫包件/庫存三數字/移動紀錄）、商品、設定
 
-角色與權限完整設計見 **`docs/design/rbac-spec.md`**（章節編號 9.1–9.9，供 prompt 引用）：7 個角色（+sysadmin）、ROLE_MATRIX、scope／field-class、ApprovalRule、audit、migration 報告。原則：預設拒絕；矩陣管 view/edit/execute/export，**審批一律由 ApprovalRule 設定表管**；司機只限派畀本人＋當日嘅單。
+Row click 開右邊 side peek（詳情＋時間線＋留言），見 **`docs/design/side-peek-spec.md`**。角色與權限完整設計見 **`docs/design/rbac-spec.md`**（章節編號 9.1–9.9，供 prompt 引用）：7 個角色（+sysadmin）、ROLE_MATRIX、scope／field-class、ApprovalRule、audit、migration 報告。原則：預設拒絕；矩陣管 view/edit/execute/export，**審批一律由 ApprovalRule 設定表管**；司機只限派畀本人＋當日嘅單。
 
 ## 7. 非功能要求
 

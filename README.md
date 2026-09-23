@@ -15,6 +15,20 @@ Morihome ERP 前端，React + TypeScript + Vite + Ant Design 5/6，全套 UI 跟
 設計 spec 喺 `docs/design/erp-redesign-spec.md`（v0.2，2026-09-23）、角色權限喺 `docs/design/rbac-spec.md`，
 工作守則喺 `CLAUDE.md` —— 做 feature 之前先讀相關章節。
 
+## Side peek（docs/design/side-peek-spec.md）—— 訂單頁先做樣板
+
+- `<RecordPeek />` 掛喺 App 一次；邊個 model 由 `usePeek()` 決定，每個 model 一份 config（`src/peek/configs.tsx`），暫時只有 `order`
+- 行為：row click 開右邊（checkbox / 行內掣 stopPropagation）；URL `?peek=order:PO3579`（copy link、reload 保留、返回鍵閂）；
+  `↑↓` / `j k` 切上下一行（用列表頁 `useRegisterPeekList` 交出嘅順序）、`Esc` 閂、`Enter` / 「開全頁」（全頁未建，先彈提示）；
+  桌面 520px 拖 440–720 記 localStorage；手機全螢幕 sheet 有返回箭咀
+- 版面 §2 五層：Header（編號 + 推導 bucket + 安排送貨 / WhatsApp + ⋯）→ 待辦條（完成 / 未能接通 / 改期，同「我的跟進」同一套）
+  → 摘要（10 欄，渠道 / 客人要求日 / 備註 / 負責人 inline edit，受 `orders.edit`）→ tab 貨品與包件｜收款｜送貨 → 時間線
+- 時間線（`src/data/timeline.ts`，代表後端 union API）：AuditLog ∪ 移動事件 ∪ Activity ∪ Comment；七種事件；移動事件嘅後果喺
+  事件發生時寫入 payload（「收貨 → 包件 3/3 在港 → 可安排送貨」）；同一人 5 分鐘內欄位變更合併；含 COST / FINANCE_DETAIL 嘅事件對冇權限角色整條唔出；
+  driver 只見物流事件同留言；composer 用 antd `Mentions`，@ 名單只列有該紀錄 view 權限嘅同事
+- 訂單頁行首「＋展開」已移除；庫存等候頁未郁（§7：保留 collapse，peek 做補充，等 review 先加）
+- 未做：留言改 / 刪（15 分鐘、soft delete）、@mention 鈴鐺通知、附件真上傳、關聯紀錄 push（例：訂單 → 採購單，要有採購單 config 先）
+
 ## 2026-09-23 跟三份 spec 改咗嘅嘢
 
 - **訂單「狀態」= 推導 bucket**（未採購 / 備貨中 / 待約 / 已約 / 部分送達 / 已完成，`domain/derive.ts` `orderBucket`），
@@ -81,6 +95,9 @@ src/
   data/fixtures/items.json    Alex Excel 抽出嘅廠家目錄（scripts/build-fixtures.mjs 生成）
   data/buckets.ts             訂單 bucket → 顏色 / 文字（全 app 唯一 mapping）
   config/permissions.ts       RBAC registry（§9.2–9.5）
+  peek/                       RecordPeek（PeekContext / hooks / RecordPeek / Timeline / configs）
+  data/timeline.ts            時間線 union + 剝除 + 合併 + 分組（代表 GET /api/timeline）
+  data/staff.ts               同事名錄（actor / @mention）
   utils/date.ts               全 app 唯一日期 formatter
   data/ops.ts                 採購需求 / 採購單 / 包件 / StockMove 嘅示範資料 + store（唯一寫 location 嘅地方係 completeMove）
   data/ops.test.ts            採購、訂貨確認、發貨表對數嘅測試（7 個）
