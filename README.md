@@ -6,6 +6,8 @@ Morihome ERP 前端，React + TypeScript + Vite + Ant Design 5/6，全套 UI 跟
 採購 → 庫存等候 → 庫存 呢條線係照 Ocean 2026-09-23 嘅原型 feedback 改（`docs/backlog.md` B-01 至 B-07）。
 全部預設舒適模式（密集嘅 13px 字太細，Dickson 2026-09-22 決定）；右上角可以切密集。
 
+側邊欄可以收成 icon rail（header 左上角掣，記喺 localStorage）。
+
 設計 spec 喺 `docs/design/erp-redesign-spec.md`，工作守則喺 `CLAUDE.md` ——
 做 feature 之前先讀相關章節。
 
@@ -58,6 +60,8 @@ src/
   data/ops.ts                 採購需求 / 採購單 / 包件 / StockMove 嘅示範資料 + store（唯一寫 location 嘅地方係 completeMove）
   data/ops.test.ts            採購、訂貨確認、發貨表對數嘅測試（7 個）
   components/ItemName.tsx     雙名顯示（出街名 ↔ 廠商名）+ 縮圖 + 切換掣
+  components/FilterChip.tsx   表格上面嘅多選篩選 chip（Popover + checkbox + 全選）
+  utils/purchaseSheet.ts      採購表 Excel（SheetJS，只寫唔讀）
   utils/nameDisplay.ts        per-user 名稱顯示設定（localStorage 頂住）
   components/Pill.tsx         狀態藥丸（顏色只收 theme 傳入）
   components/CardList.tsx     手機版卡片列表 + 分頁
@@ -123,8 +127,11 @@ src/
 
 ## 採購（Ocean B-01 / B-02）
 
-- 訂單一落，需求自動出現；左邊按供應商 group（每個供應商仲有幾多未採購）
-- 揀需求 → 「生成採購表」：一次揀幾個供應商就每個供應商出一份（draft PurchaseOrder，批次號 0923單）
+- 訂單一落，需求自動出現。表格佔全闊，上面係 filter chip（供應商多選 + 狀態，參考 Ocean 畀嘅圖），
+  訂單號 / 訂單日期 / 數量 / 供應商 / 狀態 都可以排序
+- Ocean 嘅流程：篩供應商 → 「下載採購表」→ 每個供應商即刻出一份 Excel（`Morihome-PO-0923.xlsx`，
+  用廠家型號 + 廠家品名，附訂單號畀廠家對數）同一張 draft PurchaseOrder（批次號 0923單）；
+  冇剔行就用篩選後所有未採購嘅行，有剔就只出剔咗嘅
 - 採購單 tab：「上載訂貨確認」→ 記附件名 + 人手 key 供應商單號（HB…）→ `orderedAt` 有值
   → 需求狀態推導為「已訂」，同時為每件貨建立包件（位置 = 供應商）
 - 「已訂」冇 setter；自動讀檔（OCR）留後。附件真上傳要行帶 auth 嘅 endpoint

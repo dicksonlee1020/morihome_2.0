@@ -29,7 +29,9 @@ import {
   InboxOutlined,
   ReconciliationOutlined,
   LogoutOutlined,
+  MenuFoldOutlined,
   MenuOutlined,
+  MenuUnfoldOutlined,
   SettingOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
@@ -97,20 +99,33 @@ function Brand({ t, compact = false }: { t: Translate; compact?: boolean }) {
   );
 }
 
+const NAV_COLLAPSED_KEY = 'morihome.navCollapsed';
+
+function readNavCollapsed(): boolean {
+  try {
+    return localStorage.getItem(NAV_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 function Nav({
   page,
   user,
   onSelect,
   t,
+  collapsed = false,
 }: {
   page: PageKey;
   user: StaffUser;
   onSelect: (key: PageKey) => void;
   t: Translate;
+  collapsed?: boolean;
 }) {
   return (
     <Menu
       mode="inline"
+      inlineCollapsed={collapsed}
       selectedKeys={[page]}
       items={navItems
         .filter((item) => canOpen(user.role, item.key))
@@ -226,6 +241,18 @@ function Shell({
   const isMobile = useIsMobile();
   const { locale, setLocale, t } = useLocale();
   const [navOpen, setNavOpen] = useState(false);
+  // Ocean (2026-09-23): the sidebar folds to an icon rail like the reference
+  // app; the choice sticks per browser.
+  const [collapsed, setCollapsed] = useState(readNavCollapsed);
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    try {
+      localStorage.setItem(NAV_COLLAPSED_KEY, next ? '1' : '0');
+    } catch {
+      // preference simply does not persist
+    }
+  };
 
   const go = (key: PageKey) => {
     onNavigate(key);
@@ -245,11 +272,25 @@ function Shell({
       >
         <Flex align="center" justify="space-between" style={{ height: '100%' }}>
           <Flex align="center" gap={12}>
-            {isMobile && (
+            {isMobile ? (
               <MenuOutlined
                 onClick={() => setNavOpen(true)}
                 style={{ fontSize: 18, color: colors.textSecondary }}
               />
+            ) : (
+              <Tooltip title={t(collapsed ? 'app.nav.expand' : 'app.nav.collapse')}>
+                {collapsed ? (
+                  <MenuUnfoldOutlined
+                    onClick={toggleCollapsed}
+                    style={{ fontSize: 18, color: colors.textSecondary, cursor: 'pointer' }}
+                  />
+                ) : (
+                  <MenuFoldOutlined
+                    onClick={toggleCollapsed}
+                    style={{ fontSize: 18, color: colors.textSecondary, cursor: 'pointer' }}
+                  />
+                )}
+              </Tooltip>
             )}
             <Brand t={t} compact />
           </Flex>
@@ -284,6 +325,9 @@ function Shell({
         {!isMobile && (
           <Sider
             width={200}
+            collapsedWidth={64}
+            collapsed={collapsed}
+            trigger={null}
             style={{
               borderInlineEnd: `1px solid ${colors.border}`,
               position: 'sticky',
@@ -291,7 +335,7 @@ function Shell({
               height: 'calc(100vh - 56px)',
             }}
           >
-            <Nav page={page} user={user} onSelect={go} t={t} />
+            <Nav page={page} user={user} onSelect={go} t={t} collapsed={collapsed} />
           </Sider>
         )}
 

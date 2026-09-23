@@ -9,11 +9,8 @@ import {
   Flex,
   Form,
   Input,
-  Menu,
   Modal,
   Row,
-  Segmented,
-  Select,
   Space,
   Statistic,
   Table,
@@ -42,6 +39,8 @@ import type { PurchaseOrder, Requirement, RequirementStatus } from '../data/ops'
 import { colors, useIsMobile } from '../theme';
 import { Pill } from '../components/Pill';
 import { CardList } from '../components/CardList';
+import { FilterChip } from '../components/FilterChip';
+import { downloadPurchaseSheet } from '../utils/purchaseSheet';
 import { ItemName, NameDisplaySwitch } from '../components/ItemName';
 import { useTableHeight } from '../utils/useTableHeight';
 import { useT } from '../i18n';
@@ -62,7 +61,6 @@ const STATUS_META: Record<RequirementStatus, { labelKey: MessageKey; tone: Tone 
   ordered: { labelKey: 'purchasing.status.ordered', tone: 'success' },
 };
 
-type StatusFilter = RequirementStatus | 'all';
 
 export function PurchasingPage() {
   const { message } = App.useApp();
@@ -73,8 +71,8 @@ export function PurchasingPage() {
   const ops = useOps();
 
   const [tab, setTab] = useState<'requirements' | 'orders'>('requirements');
-  const [supplier, setSupplier] = useState<string>('all');
-  const [status, setStatus] = useState<StatusFilter>('open');
+  const [suppliers, setSuppliers] = useState<string[]>([]);
+  const [statuses, setStatuses] = useState<RequirementStatus[]>(['open']);
   const [keyword, setKeyword] = useState('');
   const [selected, setSelected] = useState<React.Key[]>([]);
   const [confirming, setConfirming] = useState<PurchaseOrder | null>(null);
@@ -84,7 +82,7 @@ export function PurchasingPage() {
     [ops]
   );
 
-  /** 每個供應商仲有幾多需求未採購 —— 左邊清單同 B-01 嘅 group 靠呢個 */
+  /** 每個供應商仲有幾多需求未採購 —— filter chip 嘅選項旁邊顯示 */
   const openBySupplier = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of withStatus) if (r.status === 'open') m.set(r.supplier, (m.get(r.supplier) ?? 0) + 1);
@@ -95,8 +93,8 @@ export function PurchasingPage() {
     const kw = keyword.trim().toLowerCase();
     return withStatus
       .filter((r) => {
-        if (supplier !== 'all' && r.supplier !== supplier) return false;
-        if (status !== 'all' && r.status !== status) return false;
+        if (suppliers.length > 0 && !suppliers.includes(r.supplier)) return false;
+        if (statuses.length > 0 && !statuses.includes(r.status)) return false;
         if (!kw) return true;
         const p = productOf(r.sku);
         return (
@@ -107,24 +105,36 @@ export function PurchasingPage() {
           (p?.supplierName.toLowerCase().includes(kw) ?? false)
         );
       })
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  }, [withStatus, supplier, status, keyword]);
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.orderNo.localeCompare(b.orderNo));
+  }, [withStatus, suppliers, statuses, keyword]);
 
-  const selectedRows = withStatus.filter((r) => selected.includes(r.id) && r.status === 'open');
-  const selectedSuppliers = [...new Set(selectedRows.map((r) => r.supplier))];
+  const filtered = suppliers.length > 0 || statuses.length !== 1 || statuses[0] !== 'open' || keyword !== '';
+  const clearFilters = () => {
+    setSuppliers([]);
+    setStatuses(['open']);
+    setKeyword('');
+    setSelected([]);
+  };
 
-  const generate = () => {
+  // 有揀就用揀咗嘅；冇揀就用篩選後所有未採購嘅行 —— Ocean 嘅流程係篩供應商即刻 download
+  const openRows = rows.filter((r) => r.status === 'open');
+  const selectedRows = openRows.filter((r) => selected.includes(r.id));
+  const targetRows = selectedRows.length > 0 ? selectedRows : openRows;
+  const targetSuppliers = [...new Set(targetRows.map((r) => r.supplier))];
+
+  /** B-01：每個供應商一份採購表 —— 生成 draft PurchaseOrder，即刻下載 Excel 畀同事 send */
+  const download = () => {
     const made: string[] = [];
-    for (const s of selectedSuppliers) {
+    for (const s of targetSuppliers) {
       const po = createPurchaseOrder(
         s,
-        selectedRows.filter((r) => r.supplier === s).map((r) => r.id)
+        targetRows.filter((r) => r.supplier === s).map((r) => r.id)
       );
+      downloadPurchaseSheet(po, ops.requirements);
       made.push(`${po.batchNo}（${s}）`);
     }
     setSelected([]);
-    message.success(t('purchasing.generated', { n: made.length, list: made.join('、') }));
-    setTab('orders');
+    message.success(t('purchasing.downloaded', { n: made.length, list: made.join('、') }), 6);
   };
 
   const stats = useMemo(() => {
@@ -138,23 +148,31 @@ export function PurchasingPage() {
     return { open, drafts, ordered, oldestDays };
   }, [withStatus, ops.purchaseOrders]);
 
+  const STATUS_ORDER: RequirementStatus[] = ['open', 'inPurchaseOrder', 'ordered'];
+
   const columns: TableColumnsType<(typeof rows)[number]> = [
     {
-      title: t('purchasing.col.order'),
+      title: t('purchasing.col.orderNo'),
       dataIndex: 'orderNo',
       width: wc(110),
       fixed: 'left',
+      sorter: (a, b) => a.orderNo.localeCompare(b.orderNo),
       render: (no: string, r) => (
-        <Flex vertical>
-          <Text style={{ fontWeight: 500 }}>{isStockRequirement(r) ? t('purchasing.stockOrder') : no}</Text>
-          <Text type="secondary" style={{ fontSize: 13 }}>{r.createdAt}</Text>
-        </Flex>
+        <Text style={{ fontWeight: 500 }}>{isStockRequirement(r) ? t('purchasing.stockOrder') : no}</Text>
       ),
+    },
+    {
+      title: t('purchasing.col.orderDate'),
+      dataIndex: 'createdAt',
+      width: wc(120),
+      sorter: (a, b) => a.createdAt.localeCompare(b.createdAt),
+      defaultSortOrder: 'ascend',
+      render: (d: string) => <Text type="secondary">{d}</Text>,
     },
     {
       title: t('purchasing.col.customer'),
       key: 'customer',
-      width: wc(120),
+      width: wc(130),
       render: (_, r) =>
         isStockRequirement(r) ? (
           <Pill tone="muted">{t('purchasing.stockOrder')}</Pill>
@@ -171,11 +189,18 @@ export function PurchasingPage() {
         return p ? <ItemName product={p} thumb /> : <Text>{r.sku}</Text>;
       },
     },
-    { title: t('purchasing.col.qty'), dataIndex: 'qty', width: wc(64), align: 'right' },
+    {
+      title: t('purchasing.col.qty'),
+      dataIndex: 'qty',
+      width: wc(84),
+      align: 'right',
+      sorter: (a, b) => a.qty - b.qty,
+    },
     {
       title: t('purchasing.col.supplier'),
       dataIndex: 'supplier',
-      width: wc(150),
+      width: wc(160),
+      sorter: (a, b) => a.supplier.localeCompare(b.supplier),
       render: (s: string) => <Text type="secondary">{s}</Text>,
     },
     {
@@ -189,7 +214,8 @@ export function PurchasingPage() {
     {
       title: t('common.status'),
       key: 'status',
-      width: wc(150),
+      width: wc(170),
+      sorter: (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status),
       render: (_, r) => {
         const m = STATUS_META[r.status];
         const po = ops.purchaseOrders.find((p) => p.id === r.purchaseOrderId);
@@ -203,174 +229,146 @@ export function PurchasingPage() {
     },
   ];
 
-  const supplierMenu = (
-    <Menu
-      mode="inline"
-      selectedKeys={[supplier]}
-      onClick={({ key }) => {
-        setSupplier(key);
-        setSelected([]);
-      }}
-      style={{ borderInlineEnd: 'none' }}
-      items={[
-        {
-          key: 'all',
-          label: (
-            <Flex justify="space-between">
-              <span>{t('purchasing.allSuppliers')}</span>
-              <Text type="secondary">{stats.open}</Text>
-            </Flex>
-          ),
-        },
-        ...SUPPLIERS.map((s) => ({
-          key: s,
-          label: (
-            <Flex justify="space-between" gap={8}>
-              <Text ellipsis>{s}</Text>
-              <Text type="secondary">{openBySupplier.get(s) ?? 0}</Text>
-            </Flex>
-          ),
-        })),
-      ]}
-    />
-  );
+  const supplierOptions = SUPPLIERS.map((s) => ({
+    value: s,
+    label: (
+      <Flex justify="space-between" gap={12} style={{ flexGrow: 1 }}>
+        <Text>{s}</Text>
+        <Text type="secondary">{openBySupplier.get(s) ?? 0}</Text>
+      </Flex>
+    ),
+  }));
+  const statusOptions = STATUS_ORDER.map((v) => ({
+    value: v,
+    label: <Pill tone={STATUS_META[v].tone} dot>{t(STATUS_META[v].labelKey)}</Pill>,
+  }));
 
-  const statusOptions = [
-    { value: 'open', label: t('purchasing.status.open') },
-    { value: 'inPurchaseOrder', label: t('purchasing.status.inPo') },
-    { value: 'ordered', label: t('purchasing.status.ordered') },
-    { value: 'all', label: t('common.all') },
-  ];
+  const downloadLabel =
+    targetSuppliers.length > 1
+      ? t('purchasing.downloadMany', { n: targetSuppliers.length })
+      : targetSuppliers.length === 1
+        ? t('purchasing.downloadOne', { supplier: targetSuppliers[0] })
+        : t('purchasing.download');
 
   const requirementsTab = (
-    <Flex gap={16} align="stretch">
-      {!isMobile && (
-        <Card size="small" styles={{ body: { padding: 4 } }} style={{ width: 240, flexShrink: 0, alignSelf: 'flex-start' }}>
-          <Text type="secondary" style={{ display: 'block', padding: '8px 16px 4px', fontSize: 13 }}>
-            {t('purchasing.bySupplier')}
-          </Text>
-          {supplierMenu}
-        </Card>
-      )}
-      <Card
-        style={{ flex: 1, minWidth: 0 }}
-        styles={{ body: { paddingTop: 12 } }}
-        title={
-          isMobile ? (
-            <Select value={status} onChange={(v) => setStatus(v as StatusFilter)} options={statusOptions} style={{ width: '100%' }} />
-          ) : (
-            <Segmented value={status} onChange={(v) => setStatus(v as StatusFilter)} options={statusOptions} />
-          )
-        }
-        extra={!isMobile && <Text type="secondary">{t('purchasing.filtered', { n: rows.length })}</Text>}
-      >
-        <Flex vertical gap={12}>
-          <Flex gap={8} wrap align="center">
-            <Input
-              allowClear
-              prefix={<SearchOutlined style={{ color: colors.textMuted }} />}
-              placeholder={t('purchasing.search')}
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              style={{ width: isMobile ? '100%' : 260 }}
-            />
-            {isMobile && (
-              <Select
-                value={supplier}
-                onChange={(v) => setSupplier(v)}
-                style={{ width: '100%' }}
-                options={[
-                  { value: 'all', label: t('purchasing.allSuppliers') },
-                  ...SUPPLIERS.map((s) => ({ value: s, label: `${s}（${openBySupplier.get(s) ?? 0}）` })),
-                ]}
-              />
-            )}
-            <NameDisplaySwitch />
-          </Flex>
-
-          {selectedRows.length > 0 && (
-            <Flex
-              align="center"
-              justify="space-between"
-              wrap
-              gap={8}
-              style={{ padding: '6px 12px', background: colors.primarySubtle, borderRadius: 6 }}
-            >
-              <Text>
-                {t('purchasing.selected', { n: selectedRows.length, suppliers: selectedSuppliers.length })}
-              </Text>
-              <Space>
-                <Button type="primary" size="small" icon={<FileDoneOutlined />} onClick={generate}>
-                  {selectedSuppliers.length > 1
-                    ? t('purchasing.generateMany', { n: selectedSuppliers.length })
-                    : t('purchasing.generateOne', { supplier: selectedSuppliers[0] })}
-                </Button>
-                <Button size="small" type="text" onClick={() => setSelected([])}>
-                  {t('common.clear')}
-                </Button>
-              </Space>
-            </Flex>
+    <Card styles={{ body: { paddingTop: 12 } }}>
+      <Flex vertical gap={12}>
+        <Flex gap={8} wrap align="center">
+          <FilterChip
+            label={t('purchasing.filter.supplier')}
+            options={supplierOptions}
+            value={suppliers}
+            onChange={(v) => {
+              setSuppliers(v);
+              setSelected([]);
+            }}
+            renderSelected={(v) => <Text style={{ fontWeight: 500 }}>{v}</Text>}
+          />
+          <FilterChip
+            label={t('purchasing.filter.status')}
+            options={statusOptions}
+            value={statuses}
+            onChange={(v) => {
+              setStatuses(v);
+              setSelected([]);
+            }}
+          />
+          {filtered && (
+            <Button type="text" size="small" onClick={clearFilters}>
+              {t('filter.clearAll')}
+            </Button>
           )}
+          <span style={{ flexGrow: 1 }} />
+          <Input
+            allowClear
+            prefix={<SearchOutlined style={{ color: colors.textMuted }} />}
+            placeholder={t('purchasing.search')}
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            style={{ width: isMobile ? '100%' : 260 }}
+          />
+          <NameDisplaySwitch />
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            disabled={targetRows.length === 0}
+            onClick={download}
+          >
+            {downloadLabel}
+          </Button>
+        </Flex>
 
-          {isMobile ? (
-            <CardList
-              items={rows}
-              rowKey={(r) => r.id}
-              renderItem={(r) => {
-                const p = productOf(r.sku);
-                const m = STATUS_META[r.status];
-                const picked = selected.includes(r.id);
-                return (
-                  <Card
-                    size="small"
-                    onClick={() =>
-                      r.status === 'open' &&
-                      setSelected((prev) => (picked ? prev.filter((k) => k !== r.id) : [...prev, r.id]))
-                    }
-                    style={{ borderColor: picked ? colors.primary : undefined }}
-                  >
-                    <Flex vertical gap={8}>
-                      <Flex justify="space-between" align="center">
-                        <Text style={{ fontWeight: 600 }}>
-                          {isStockRequirement(r) ? t('purchasing.stockOrder') : `${r.orderNo} · ${r.customer.alias} · ${r.customer.district}`}
-                        </Text>
-                        <Pill tone={m.tone} dot>{t(m.labelKey)}</Pill>
-                      </Flex>
-                      {p && <ItemName product={p} thumb />}
-                      <Text type="secondary">
-                        {r.supplier} · {t('purchasing.col.qty')} {r.qty}
-                      </Text>
-                    </Flex>
-                  </Card>
-                );
-              }}
-            />
-          ) : (
-            <Table
-              rowKey="id"
-              columns={columns}
-              dataSource={rows}
-              pagination={false}
-              scroll={{ x: wc(1000), y: tableHeight }}
-              rowSelection={{
-                selectedRowKeys: selected,
-                onChange: setSelected,
-                columnWidth: wc(48),
-                getCheckboxProps: (r) => ({ disabled: r.status !== 'open' }),
-              }}
-              locale={{ emptyText: <Empty description={t('purchasing.emptyOpen')} /> }}
-            />
+        <Flex align="center" justify="space-between" wrap gap={8}>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            {selectedRows.length > 0
+              ? t('purchasing.selected', { n: selectedRows.length, suppliers: targetSuppliers.length })
+              : t('purchasing.filtered', { n: rows.length })}
+          </Text>
+          {selectedRows.length > 0 && (
+            <Button size="small" type="text" onClick={() => setSelected([])}>
+              {t('common.clear')}
+            </Button>
           )}
         </Flex>
-      </Card>
-    </Flex>
+
+        {isMobile ? (
+          <CardList
+            items={rows}
+            rowKey={(r) => r.id}
+            renderItem={(r) => {
+              const p = productOf(r.sku);
+              const m = STATUS_META[r.status];
+              const picked = selected.includes(r.id);
+              return (
+                <Card
+                  size="small"
+                  onClick={() =>
+                    r.status === 'open' &&
+                    setSelected((prev) => (picked ? prev.filter((k) => k !== r.id) : [...prev, r.id]))
+                  }
+                  style={{ borderColor: picked ? colors.primary : undefined }}
+                >
+                  <Flex vertical gap={8}>
+                    <Flex justify="space-between" align="center">
+                      <Text style={{ fontWeight: 600 }}>
+                        {isStockRequirement(r) ? t('purchasing.stockOrder') : `${r.orderNo} · ${r.customer.alias} · ${r.customer.district}`}
+                      </Text>
+                      <Pill tone={m.tone} dot>{t(m.labelKey)}</Pill>
+                    </Flex>
+                    {p && <ItemName product={p} thumb />}
+                    <Text type="secondary">
+                      {r.createdAt} · {r.supplier} · {t('purchasing.col.qty')} {r.qty}
+                    </Text>
+                  </Flex>
+                </Card>
+              );
+            }}
+          />
+        ) : (
+          <Table
+            rowKey="id"
+            columns={columns}
+            dataSource={rows}
+            pagination={false}
+            scroll={{ x: wc(1100), y: tableHeight }}
+            rowSelection={{
+              selectedRowKeys: selected,
+              onChange: setSelected,
+              columnWidth: wc(48),
+              getCheckboxProps: (r) => ({ disabled: r.status !== 'open' }),
+            }}
+            locale={{ emptyText: <Empty description={t('purchasing.emptyOpen')} /> }}
+          />
+        )}
+      </Flex>
+    </Card>
   );
 
   const ordersTab = (
     <PurchaseOrderList
       orders={[...ops.purchaseOrders].filter((p) => p.supplier).sort((a, b) => b.createdAt.localeCompare(a.createdAt))}
       onConfirm={setConfirming}
-      onExport={(po) => message.success(t('purchasing.exported', { batch: po.batchNo }))}
+      onExport={(po) => downloadPurchaseSheet(po, ops.requirements)}
     />
   );
 
@@ -379,7 +377,7 @@ export function PurchasingPage() {
       <Flex align="center" justify="space-between" wrap gap={12}>
         <Flex vertical gap={2}>
           <Title level={1} style={{ margin: 0 }}>{t('purchasing.title')}</Title>
-          <Text type="secondary">{t('purchasing.subtitle')}</Text>
+          <Text type="secondary">{t('purchasing.flowHint')}</Text>
         </Flex>
       </Flex>
 
