@@ -1,7 +1,6 @@
 /* 全部顏色、字體、尺寸都由 src/theme.ts 出。
    呢度淨係擺 antd 管唔到嘅少少全域嘢。 */
 
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap');
 
 html,
 body,

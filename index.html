@@ -2,14 +2,29 @@
 <html lang="zh-HK">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/brand/favicon-16.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/brand/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./brand/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="./brand/favicon-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./brand/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Morihome ERP</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- 靜態載入畫面：JS 未行到之前都見到嘢；React mount 時會取代。唔係 UI string，係 bootstrap 例外。 -->
+      <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-family:system-ui,sans-serif;color:#727272;background:#F3F2EE">
+        <img src="./brand/logo-mark-128.png" width="56" height="56" alt="" />
+        <div>載入中…</div>
+      </div>
+    </div>
+    <script>
+      // 未 mount 之前出錯（例如舊瀏覽器 parse 唔到 bundle）就顯示錯誤文字，唔好留白畫面
+      window.addEventListener('error', function (e) {
+        var root = document.getElementById('root');
+        if (!root || root.getAttribute('data-mounted')) return;
+        root.innerHTML = '<div style="padding:24px;font-family:system-ui,sans-serif"><h1 style="font-size:18px">載入失敗 / Failed to load</h1><pre style="white-space:pre-wrap;font-size:12px;background:#F8F8F8;padding:12px">' +
+          String((e && (e.message || (e.target && e.target.src))) || e) + '\n' + navigator.userAgent + '</pre></div>';
+      }, true);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
