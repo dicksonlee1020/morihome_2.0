@@ -16,6 +16,7 @@ export type PageKey =
   | 'purchasing'
   | 'waiting'
   | 'delivery'
+  | 'hr'
   | 'settings';
 
 export const PAGE_MODULE: Record<PageKey, Module> = {
@@ -28,6 +29,7 @@ export const PAGE_MODULE: Record<PageKey, Module> = {
   purchasing: 'purchasing',
   waiting: 'purchasing',
   delivery: 'delivery',
+  hr: 'hr',
   settings: 'settings',
 };
 

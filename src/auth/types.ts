@@ -27,6 +27,8 @@ export interface StaffUser {
   /** Set on accounts opened with a temporary password. */
   mustChangePassword: boolean;
   lastLoginAt: string | null;
+  /** §9.1: external / temporary accounts expire by themselves; null = staff. */
+  expiresAt: string | null;
 }
 
 export interface Session {

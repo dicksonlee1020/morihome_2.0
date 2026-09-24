@@ -29,6 +29,32 @@ Morihome ERP 前端，React + TypeScript + Vite + Ant Design 5/6，全套 UI 跟
 - 訂單頁行首「＋展開」已移除；庫存等候頁未郁（§7：保留 collapse，peek 做補充，等 review 先加）
 - 未做：留言改 / 刪（15 分鐘、soft delete）、@mention 鈴鐺通知、附件真上傳、關聯紀錄 push（例：訂單 → 採購單，要有採購單 config 先）
 
+## 設定（帳號管理 / 審批規則 / 權限 / 審計紀錄）—— rbac-spec §9
+
+- 側邊欄「設定」，四個 tab 各對應 registry 一個 module（`accounts` / `settings` / `audit`），冇 view 權嘅 tab 唔出
+- **帳號管理**（`src/data/admin.ts` + `auth/mockAuthService.ts` 同一份帳號）：改角色 inline；owner 改自己角色會開一張 request，
+  另一位 owner 喺頂部橫幅確認先生效（§9.3 註⁹）；sysadmin 唔可以改自己角色（§9.8.4）；停用即時擋登入、唔可以停自己；
+  新增帳號用臨時密碼、首次登入必須改；`expiresAt` 到期自動失效（§9.1）。每一步落 AuditLog。
+- **審批規則**（§9.6）：每個 approvalType 一行，觸發值（金額 / 件數）同審批人（按角色 / 指定人）inline 改，開關啟用；
+  審批人唔可以批自己提出嘅嘢；指定人自己提交（例：Jenny 自己請假）就跌落 role 由另一位 owner 批。規則變更每個欄位一條 audit。
+- **權限**：角色矩陣直接由 `config/permissions.ts` render（只讀 —— 改權限 = 改 registry，唔設個別帳號例外）；
+  欄位類別同可見角色；列級範圍規則；**臨時授權**（§9.8.3）：owner 限時開 COST / PII 畀某同事，到期自動失效、可撤銷，
+  `canSeeWithGrants()` 俾畫面問「角色本身見到，定係有未過期授權」。
+- **審計紀錄**（§9.7 append-only）：登入 / 登出（AuthProvider 寫）、開設帳號、角色 / 狀態變更、密碼重設、規則變更、授權、審批決定、敏感欄位匯出。
+
+## 人事（員工 / 排班 / 請假 / 薪資 / 佣金）—— spec 凍結中，Dickson 2026-09-24 決定一齊起
+
+- 標題旁有 TODO pill：呢個模組 spec v0.2 §1 列為 Phase 1 凍結，冇章節可引；`src/data/hr.ts` 頂部同 backlog A-06…A-09 列晒假設，等 Ocean 拍板。
+- registry 加咗兩個 module（`hr`、`payroll`）同 SCOPE_RULE `hr.self`：有 `hr.edit`（owner、ops）或 `payroll.view`（owner、finance）
+  見全公司，其他人只見自己嗰行；FIELD_CLASS `HR`（薪金 / 假期餘額 / 佣金率）owner + finance，自己嗰行永遠見到。
+- **員工**：名錄 + 年假餘額（配額 − 今年已批年假）；底薪 / 津貼 owner 可 inline 改（`payroll.edit`）。
+- **排班**：一星期一版，row = 同事、column = 日；owner / ops 直接喺格入面改（時段 + 地點）；今日欄有底色；手機轉每日一張卡。
+- **請假**：申請 → 由 ApprovalRule `leave` 決定邊個批（seed：Jenny）→ 批准後排班格自動變「請假」，決定落 AuditLog；
+  重疊日期擋；假期日數唔計星期日（假設：門市六天制）。
+- **薪資**：finance 起草（`refreshPayrollDraft` 每次重算佣金）、ApprovalRule `payroll` 審批人確認後鎖定；MPF 5% 上限 1,500、兼職不計；合計行。
+- **佣金**：純推導（當月「已完成」訂單 × 該同事佣金率，`commissionFor`），冇 setter；sales 只見自己。
+- 呢兩頁嘅 table 未做 row click peek —— 等訂單頁 peek review 完再逐個 model 推（backlog P-01）。
+
 ## 2026-09-23 跟三份 spec 改咗嘅嘢
 
 - **訂單「狀態」= 推導 bucket**（未採購 / 備貨中 / 待約 / 已約 / 部分送達 / 已完成，`domain/derive.ts` `orderBucket`），
@@ -94,7 +120,11 @@ src/
   data/catalog.ts             由 fixtures/items.json 砌產品（681 件，廠家型號 / 品名 / 包件拆法）
   data/fixtures/items.json    Alex Excel 抽出嘅廠家目錄（scripts/build-fixtures.mjs 生成）
   data/buckets.ts             訂單 bucket → 顏色 / 文字（全 app 唯一 mapping）
-  config/permissions.ts       RBAC registry（§9.2–9.5）
+  config/permissions.ts       RBAC registry（§9.2–9.5 + hr / payroll 假設）
+  data/admin.ts               設定 store：角色變更規則、ApprovalRule、臨時授權、AuditLog（+ admin.test.ts 12 個測試）
+  data/hr.ts                  人事 store：員工 / 排班 / 請假 / 薪資 / 佣金推導（+ hr.test.ts 9 個測試）
+  pages/settings/             SettingsPage + AccountsTab / ApprovalsTab / PermissionsTab / AuditTab
+  pages/hr/                   HrPage + EmployeesTab / RosterTab / LeaveTab / PayrollTab / CommissionTab
   peek/                       RecordPeek（PeekContext / hooks / RecordPeek / Timeline / configs）
   data/timeline.ts            時間線 union + 剝除 + 合併 + 分組（代表 GET /api/timeline）
   data/staff.ts               同事名錄（actor / @mention）
@@ -227,6 +257,9 @@ src/
 - **Q12（包件資料邊個入）**：而家假設落單（上載訂貨確認）時就建立包件，編碼 = 廠家型號 + 訂單號 + 件序；
   真正答案好可能係供應商發貨表本身有包件編碼，等 Alex 畀一份真表先定。
 - **備貨款清單**：邊啲款算儲定貨、比例幾多，fixture 假設 2%，要 Ocean 定。
+- **人事模組**：CLAUDE.md 同 spec §1 仍然寫住「凍結」，起咗係 Dickson 2026-09-24 嘅決定；CLAUDE.md 嗰行等佢自己改。
+  流程全部係假設（backlog A-06…A-09）。臨時授權而家只有設定頁同人事頁用 `canSeeWithGrants()`，
+  訂單 / 商品 / 時間線嘅 COST / PII 仍然只睇角色，接後台時由 `stripFields()` 統一處理。
 - **Excel 發貨表**：而家淨係讀 CSV，xlsx 要後台先做。
 - **登入未接後台**：session 係 mock token 放喺 storage；真 API 要簽 JWT、
   server 端鎖定、重設連結經電郵。Google SSO 要等 Workspace tenant。

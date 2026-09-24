@@ -35,11 +35,24 @@ CLAUDE.md 規定：新需求唔准直接加落 code，先記入呢度，等 scop
 | A-04 | 出街名暫用廠家品名簡轉繁，真名要由 Shopify 同步層嚟 | — |
 | A-05 | 售價 = 人民幣成本 × 1.08 × 2.75（Q5 priceMultiplier 用途未確認） | Kengi |
 
+## 2026-09-24 設定頁 + 人事（Dickson：「唔分 phase 起設定頁，做帳號管理、審批規則、權限設定；另外起定 HR 相關頁面」）
+
+同 CLAUDE.md「HR / 排班 / 薪資 / 佣金 Phase 1 凍結」同 spec §1 有衝突 —— 當係 Dickson 嘅 scope 決定，CLAUDE.md 嗰行等佢改。以下係為咗起得到而作嘅假設：
+
+| # | 假設 | 等邊個 |
+|---|---|---|
+| A-06 | registry 加 `hr`（owner 全部、ops 查改、其他查）同 `payroll`（owner 全部、finance 查改匯）兩個 module；SCOPE `hr.self`：冇 hr.edit / payroll.view 就只見自己；FIELD_CLASS `HR` = owner + finance | Ocean（rbac-spec §9.3 / §9.5 要補行） |
+| A-07 | 請假由 ApprovalRule `leave` 批（seed Jenny，內務類）；指定審批人自己提交就跌落 role 由另一位 owner 批；假期日數唔計星期日（門市六天制） | Ocean / Jenny |
+| A-08 | 佣金 = 當月「已完成」（completedDate）訂單金額 × 該同事佣金率（Wilson / Steve 2%），純推導；薪資月結 finance 起草、`payroll` 規則審批人確認後鎖 | Ocean / 雯雯 |
+| A-09 | 排班：每人一個基本星期模式 + 逐格改；時段 全日 / 上午 / 下午 / 休息 / 請假，地點 門市 / 寫字樓 / 倉庫 / 送貨 | Alex / Ocean |
+| A-10 | 設定頁未做「位置 / 前置時間 / 收款方式」（矩陣有呢行，Dickson 今次冇提）；Petty Cash 規則入咗但停用 | Dickson |
+| A-11 | 臨時授權（§9.8.3）只喺設定頁 / 人事頁生效；訂單 / 商品 / 時間線嘅 COST / PII 仍純按角色，等後台 `stripFields()` 統一 | — |
+
 ## Side peek（2026-09-23）未做部分
 
 | # | 事項 | 狀態 |
 |---|---|---|
-| P-01 | 其餘 model config：採購單／送貨單／包件／流水對數／商品／客戶（§6） | 等訂單頁 review 後逐個推 |
+| P-01 | 其餘 model config：採購單／送貨單／包件／流水對數／商品／客戶（§6）；設定頁嘅帳號、人事頁嘅員工 / 請假申請都未有 peek | 等訂單頁 review 後逐個推 |
 | P-02 | 庫存等候頁：保留 collapse，click 行文字開 peek（§7） | 等 review |
 | P-03 | 留言改 / 刪（15 分鐘、soft delete、落 AuditLog）、@mention 鈴鐺通知（舊 Notification model 要接返） | 未做 |
 | P-04 | 附件真上傳（auth endpoint）、留言附相 / PDF / Excel | 未做 |

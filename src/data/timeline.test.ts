@@ -61,7 +61,8 @@ describe('timeline union (side-peek §3.1)', () => {
     const o = newest();
     updateOrder(o.orderNo, { customerRequestedNote: '要拆舊床', assignee: 'Steve' }, 'u-steve');
     const items = timelineFor(src(), 'order', o.orderNo, 'owner');
-    const first = items[0];
+    // 用 actor 搵，唔靠排第一：示範時鐘跟真時間，清晨改嘅會排喺 fixture 嘅 10:15 事件之下
+    const first = items.find((i) => i.kind === 'fieldChange' && i.actorId === 'u-steve')!;
     expect(first.kind === 'fieldChange' && first.actorId === 'u-steve' && first.changes.length === 2).toBe(true);
   });
 

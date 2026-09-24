@@ -41,17 +41,17 @@ interface StoredUser extends StaffUser {
 }
 
 const users: StoredUser[] = [
-  { id: 'u-ocean', email: 'ocean@morihome.example', displayName: 'Ocean', role: 'owner', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-21T09:12:00+08:00', password: DEMO_PASSWORD },
-  { id: 'u-jenny', email: 'jenny@morihome.example', displayName: 'Jenny', role: 'owner', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-20T15:10:00+08:00', password: DEMO_PASSWORD },
-  { id: 'u-kengi', email: 'kengi@morihome.example', displayName: 'Kengi', role: 'sysadmin', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-22T08:40:00+08:00', password: DEMO_PASSWORD },
-  { id: 'u-alex', email: 'alex@morihome.example', displayName: 'Alex', role: 'ops', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-22T09:05:00+08:00', password: DEMO_PASSWORD },
-  { id: 'u-manman', email: 'manman@morihome.example', displayName: '雯雯', role: 'finance', status: 'active', locale: 'zh-Hans', mustChangePassword: false, lastLoginAt: '2026-09-22T09:30:00+08:00', password: DEMO_PASSWORD },
-  { id: 'u-yumi', email: 'yumi@morihome.example', displayName: 'Yumi', role: 'content', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-21T17:50:00+08:00', password: DEMO_PASSWORD },
-  { id: 'u-wilson', email: 'wilson@morihome.example', displayName: 'Wilson', role: 'sales', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-22T10:02:00+08:00', password: DEMO_PASSWORD },
-  { id: 'u-steve', email: 'steve@morihome.example', displayName: 'Steve', role: 'sales', status: 'active', locale: 'zh-Hant', mustChangePassword: true, lastLoginAt: null, password: DEMO_PASSWORD },
-  { id: 'u-hang', email: 'hang@morihome.example', displayName: '阿桁', role: 'driver', status: 'active', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-09-22T07:55:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-ocean', email: 'ocean@morihome.example', displayName: 'Ocean', role: 'owner', status: 'active', locale: 'zh-Hant', mustChangePassword: false, expiresAt: null, lastLoginAt: '2026-09-21T09:12:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-jenny', email: 'jenny@morihome.example', displayName: 'Jenny', role: 'owner', status: 'active', locale: 'zh-Hant', expiresAt: null, mustChangePassword: false, lastLoginAt: '2026-09-20T15:10:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-kengi', email: 'kengi@morihome.example', displayName: 'Kengi', role: 'sysadmin', status: 'active', locale: 'zh-Hant', expiresAt: null, mustChangePassword: false, lastLoginAt: '2026-09-22T08:40:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-alex', email: 'alex@morihome.example', displayName: 'Alex', role: 'ops', status: 'active', locale: 'zh-Hant', expiresAt: null, mustChangePassword: false, lastLoginAt: '2026-09-22T09:05:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-manman', email: 'manman@morihome.example', displayName: '雯雯', role: 'finance', status: 'active', locale: 'zh-Hans', expiresAt: null, mustChangePassword: false, lastLoginAt: '2026-09-22T09:30:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-yumi', email: 'yumi@morihome.example', displayName: 'Yumi', role: 'content', status: 'active', locale: 'zh-Hant', expiresAt: null, mustChangePassword: false, lastLoginAt: '2026-09-21T17:50:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-wilson', email: 'wilson@morihome.example', displayName: 'Wilson', role: 'sales', status: 'active', locale: 'zh-Hant', expiresAt: null, mustChangePassword: false, lastLoginAt: '2026-09-22T10:02:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-steve', email: 'steve@morihome.example', displayName: 'Steve', role: 'sales', status: 'active', locale: 'zh-Hant', expiresAt: null, mustChangePassword: true, lastLoginAt: null, password: DEMO_PASSWORD },
+  { id: 'u-hang', email: 'hang@morihome.example', displayName: '阿桁', role: 'driver', status: 'active', locale: 'zh-Hant', expiresAt: null, mustChangePassword: false, lastLoginAt: '2026-09-22T07:55:00+08:00', password: DEMO_PASSWORD },
   // A leaver: the account stays for audit history but can no longer sign in.
-  { id: 'u-former', email: 'former@morihome.example', displayName: '前同事', role: 'sales', status: 'inactive', locale: 'zh-Hant', mustChangePassword: false, lastLoginAt: '2026-03-02T18:20:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-former', email: 'former@morihome.example', displayName: '前同事', role: 'sales', status: 'inactive', locale: 'zh-Hant', expiresAt: null, mustChangePassword: false, lastLoginAt: '2026-03-02T18:20:00+08:00', password: DEMO_PASSWORD },
 ];
 
 /** Accounts the demo Google picker offers, including one that is not staff. */
@@ -75,6 +75,10 @@ const attempts = new Map<string, { count: number; lockedUntil: number | null }>(
 const resetTokens = new Map<string, { email: string; expiresAt: number }>();
 
 const publicUser = ({ password: _password, ...rest }: StoredUser): StaffUser => rest;
+
+/** Deactivated or expired (§9.1 expiresAt) accounts are refused alike. */
+const isActive = (u: StoredUser, now = Date.now()) =>
+  u.status === 'active' && (u.expiresAt === null || Date.parse(u.expiresAt) > now);
 
 const findByEmail = (email: string) =>
   users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
@@ -135,7 +139,7 @@ export async function signInWithPassword(
       ? { ok: false, error: 'locked', lockedMinutes: nowLocked }
       : { ok: false, error: 'invalid' };
   }
-  if (user.status !== 'active') return { ok: false, error: 'inactive' };
+  if (!isActive(user, now)) return { ok: false, error: 'inactive' };
 
   attempts.delete(key);
   return { ok: true, session: makeSession(user, remember) };
@@ -147,7 +151,7 @@ export async function signInWithGoogle(
   if (!account) return { ok: false, error: 'ssoCancelled' };
   const user = findByEmail(account.email);
   if (!user) return { ok: false, error: 'ssoNotStaff' };
-  if (user.status !== 'active') return { ok: false, error: 'inactive' };
+  if (!isActive(user)) return { ok: false, error: 'inactive' };
   // SSO sessions follow the identity provider, so they always persist.
   return { ok: true, session: makeSession(user, true) };
 }
@@ -199,12 +203,75 @@ export async function changePassword(
   return { ok: true };
 }
 
+/* ------------------------------------------------ account management API */
+/**
+ * §9.1 / §9.3 ⁹: accounts are opened and changed by owner or sysadmin only;
+ * the rules about WHO may change WHAT (never your own role, second owner
+ * confirms) live in data/admin.ts so the audit trail is written in one place.
+ * These calls are the raw endpoints.
+ */
+const accountListeners = new Set<() => void>();
+let accountsSnapshot: StaffUser[] = users.map(publicUser);
+const emitAccounts = () => {
+  accountsSnapshot = users.map(publicUser);
+  accountListeners.forEach((l) => l());
+};
+
+export const listAccounts = (): StaffUser[] => accountsSnapshot;
+export function subscribeAccounts(l: () => void) {
+  accountListeners.add(l);
+  return () => accountListeners.delete(l);
+}
+
+export function updateAccount(
+  id: string,
+  patch: Partial<Pick<StaffUser, 'role' | 'status' | 'locale' | 'displayName' | 'expiresAt'>>
+): StaffUser | null {
+  const user = users.find((u) => u.id === id);
+  if (!user) return null;
+  Object.assign(user, patch);
+  emitAccounts();
+  return publicUser(user);
+}
+
+/** Opens an account with a temporary password; the person sets their own at first sign-in. */
+export function createAccount(input: Pick<StaffUser, 'email' | 'displayName' | 'role' | 'locale'> & { expiresAt?: string | null }): StaffUser | { error: 'duplicate' } {
+  if (findByEmail(input.email)) return { error: 'duplicate' };
+  const id = `u-${input.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+  const user: StoredUser = {
+    id: users.some((u) => u.id === id) ? `${id}-${users.length}` : id,
+    email: input.email.trim(),
+    displayName: input.displayName.trim(),
+    role: input.role,
+    status: 'active',
+    locale: input.locale,
+    mustChangePassword: true,
+    lastLoginAt: null,
+    expiresAt: input.expiresAt ?? null,
+    password: DEMO_PASSWORD,
+  };
+  users.push(user);
+  emitAccounts();
+  return publicUser(user);
+}
+
+/** Admin reset: back to the temporary password, forced change on next sign-in. */
+export function resetToTemporaryPassword(id: string): boolean {
+  const user = users.find((u) => u.id === id);
+  if (!user) return false;
+  user.password = DEMO_PASSWORD;
+  user.mustChangePassword = true;
+  attempts.delete(user.email.toLowerCase());
+  emitAccounts();
+  return true;
+}
+
+const SEED_ACCOUNTS = users.map((u) => ({ ...u }));
+
 /** Test hook: wipe lockouts and tokens between cases. */
 export function _resetMockState() {
   attempts.clear();
   resetTokens.clear();
-  for (const u of users) {
-    u.password = DEMO_PASSWORD;
-    u.mustChangePassword = u.id === 'u-steve';
-  }
+  users.splice(0, users.length, ...SEED_ACCOUNTS.map((u) => ({ ...u })));
+  emitAccounts();
 }

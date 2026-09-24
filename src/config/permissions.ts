@@ -28,7 +28,12 @@ export type Module =
   | 'customers'
   | 'settings'
   | 'accounts'
-  | 'audit';
+  | 'audit'
+  // HR was frozen in spec v0.2 §1 (Phase 1). Dickson lifted the freeze on
+  // 2026-09-24 ("唔分 phase"); the two rows below are ASSUMPTIONS until the
+  // spec's matrix gains them (backlog A-06).
+  | 'hr'
+  | 'payroll';
 
 const V: Action[] = ['view'];
 const VE: Action[] = ['view', 'export'];
@@ -60,6 +65,11 @@ export const ROLE_MATRIX: Record<Module, Record<StaffRole, Action[]>> = {
   settings: { owner: FULL, ops: V, finance: ['view', 'edit'] /* ⁷ rules, payment methods */, sales: NONE, driver: NONE, content: NONE, sysadmin: ['view', 'edit'] /* ⁸ technical only */ },
   accounts: { owner: FULL, ops: NONE, finance: NONE, sales: NONE, driver: NONE, content: NONE, sysadmin: FULL /* ⁹ never own role */ },
   audit: { owner: V, ops: NONE, finance: V, sales: NONE, driver: NONE, content: NONE, sysadmin: V },
+  // 員工／排班／請假／佣金：everyone sees their own rows (SCOPE_RULES['hr.self']);
+  // ops edits the roster; owner sees and edits all. sysadmin stripped (§9.8).
+  hr: { owner: FULL, ops: ['view', 'edit'], finance: V, sales: V, driver: V, content: V, sysadmin: NONE },
+  // 薪資：owner (Jenny handles 內務) and finance only; approval by ApprovalRule.
+  payroll: { owner: FULL, ops: NONE, finance: ['view', 'edit', 'export'], sales: NONE, driver: NONE, content: NONE, sysadmin: NONE },
 };
 
 export const can = (role: StaffRole, module: Module, action: Action): boolean =>
@@ -76,7 +86,10 @@ export const FIELD_CLASS_ROLES: Record<FieldClass, StaffRole[]> = {
   // driver only inside their own same-day deliveries (SCOPE ∩ FIELD, §9.4)
   CUSTOMER_PII: ['owner', 'sales', 'ops', 'finance', 'driver'],
   FINANCE_DETAIL: ['owner', 'finance'],
-  HR: [],
+  // spec §9.5 leaves this blank (frozen module). ASSUMPTION A-06: salary,
+  // leave balance and commission of OTHER people are owner/finance only; a
+  // person's own row is always theirs (SCOPE_RULES['hr.self']).
+  HR: ['owner', 'finance'],
 };
 
 export const canSee = (role: StaffRole, cls: FieldClass): boolean =>
@@ -87,4 +100,5 @@ export const SCOPE_RULES = {
   'driver.own_today': 'assignee = self AND runDate = today',
   'followup.assignee_default': 'my follow-ups open on the signed-in person; ops may switch to all',
   company: 'companyId reserved on every entity; filtering is OFF in Phase 1 (Q24)',
+  'hr.self': 'roster / leave / commission rows: employee = self unless the role has hr.edit or payroll.view',
 } as const;

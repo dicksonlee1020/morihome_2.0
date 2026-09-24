@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { AuthContext, SESSION_STORAGE_KEY } from './context';
 import type { AuthContextValue, AuthStatus } from './context';
 import * as api from './mockAuthService';
+import { logSession } from '../data/admin';
 import type { GoogleAccount, Session } from './types';
 
 /**
@@ -56,7 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback<AuthContextValue['signIn']>(
     async (email, password, remember) => {
       const result = await api.signInWithPassword(email, password, remember);
-      if (result.ok) adopt(result.session);
+      if (result.ok) {
+        adopt(result.session);
+        logSession(result.session.user.id, 'login');
+      }
       return result;
     },
     [adopt]
@@ -65,7 +69,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = useCallback(
     async (account: GoogleAccount | null) => {
       const result = await api.signInWithGoogle(account);
-      if (result.ok) adopt(result.session);
+      if (result.ok) {
+        adopt(result.session);
+        logSession(result.session.user.id, 'login');
+      }
       return result;
     },
     [adopt]
@@ -80,7 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const signOut = useCallback(() => adopt(null), [adopt]);
+  const signOut = useCallback(() => {
+    if (session) logSession(session.user.id, 'logout');
+    adopt(null);
+  }, [adopt, session]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

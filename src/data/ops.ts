@@ -952,8 +952,8 @@ export function scheduleOrder(orderNo: string, date: string, slot: TimeSlot, act
   });
 }
 
-/** 示範時鐘：今日 + 而家嘅時分（DEMO_TODAY 固定，時間跟真時鐘） */
-export const nowIso = () => `${DEMO_TODAY}T${new Date().toTimeString().slice(0, 8)}+08:00`;
+/** 示範時鐘：今日 + 而家嘅香港時分（DEMO_TODAY 固定，時間跟真時鐘，UTC+8） */
+export const nowIso = () => `${DEMO_TODAY}T${new Date(Date.now() + 8 * 3_600_000).toISOString().slice(11, 19)}+08:00`;
 
 /* -------------------------------------------------------------- derived */
 

@@ -26,6 +26,7 @@ import {
   ContainerOutlined,
   FileTextOutlined,
   HourglassOutlined,
+  IdcardOutlined,
   InboxOutlined,
   ReconciliationOutlined,
   LogoutOutlined,
@@ -43,6 +44,8 @@ import { PurchasingPage } from './pages/PurchasingPage';
 import { WaitingPage } from './pages/WaitingPage';
 import { RestockPage } from './pages/RestockPage';
 import { MyFollowupsPage } from './pages/MyFollowupsPage';
+import { SettingsPage } from './pages/settings/SettingsPage';
+import { HrPage } from './pages/hr/HrPage';
 import { AuthScreens } from './pages/auth/AuthScreens';
 import { LOCALES, LocaleProvider, useLocale } from './i18n';
 import type { MessageKey, Translate } from './i18n';
@@ -59,7 +62,7 @@ const { Text } = Typography;
 /**
  * Spec §6: the main entry is a task screen, not a module menu, so the
  * follow-up list sits first. What each role actually sees comes from
- * PAGE_ROLES (default deny).
+ * PAGE_MODULE + the registry (default deny).
  */
 const navItems: { key: PageKey; icon: React.ReactNode }[] = [
   { key: 'followups', icon: <CheckSquareOutlined /> },
@@ -73,6 +76,7 @@ const navItems: { key: PageKey; icon: React.ReactNode }[] = [
   { key: 'restock', icon: <ReconciliationOutlined /> },
   { key: 'products', icon: <AppstoreOutlined /> },
   { key: 'delivery', icon: <CarOutlined /> },
+  { key: 'hr', icon: <IdcardOutlined /> },
   { key: 'settings', icon: <SettingOutlined /> },
 ];
 
@@ -218,6 +222,10 @@ function PageBody({
       return <PurchasingPage />;
     case 'waiting':
       return <WaitingPage />;
+    case 'hr':
+      return <HrPage />;
+    case 'settings':
+      return <SettingsPage />;
     default:
       return (
         <Flex align="center" justify="center" style={{ minHeight: 400 }}>
