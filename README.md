@@ -73,6 +73,15 @@ Morihome ERP 前端，React + TypeScript + Vite + Ant Design 5/6，全套 UI 跟
   訂單 `PO3562` + 地區（地區分布跟 Excel）、批次 `0903单`、`HB…` / `JH…` 單號、`中通快递 3023…` 物流、
   包件 `Y09BB0025150-3562` + `PF150200001-3562`。Excel 本身唔入 repo；客人一律化名 + 化名電話。
 
+## 下載單一 HTML
+
+```
+node scripts/build-single.mjs   # → dist-single/morihome-erp.html
+```
+
+JS、CSS、logo 全部 inline 入一個檔（約 2.7 MB），download 落嚟雙擊就開到，唔使 server。
+示範資料係 in-memory，refresh 就重置；字型由 Google Fonts 載，離線時用系統字。
+
 ## 行起佢
 
 ```bash

@@ -1,3 +1,4 @@
+import { brandUrl } from '../../utils/brandUrl';
 import type { ReactNode } from 'react';
 import { Card, Flex, Segmented, Typography } from 'antd';
 import { LOCALES, useLocale } from '../../i18n';
@@ -11,7 +12,7 @@ const { Text } = Typography;
  * 1080x1080). The slot stretches to the card's bottom edge and the photo is
  * centre-cropped into it, so the left column always ends level with the card.
  */
-const HERO_SRC = `${import.meta.env.BASE_URL}brand/login-hero.jpg`;
+const HERO_SRC = brandUrl('login-hero.jpg');
 
 /**
  * Frame shared by sign-in, forgot-password and reset-password.

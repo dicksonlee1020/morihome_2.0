@@ -11,5 +11,8 @@ export default defineConfig({
   build: {
     // Older Android WebViews / iOS 15 Safari still parse the output.
     target: ['es2020', 'chrome90', 'safari15'],
+    // SINGLE=1 (scripts/build-single.mjs): one JS chunk, so the downloadable
+    // HTML needs no sibling files (SheetJS is inlined instead of lazy-loaded).
+    ...(process.env.SINGLE ? { outDir: 'dist-single', rolldownOptions: { output: { codeSplitting: false } } } : {}),
   },
 })
