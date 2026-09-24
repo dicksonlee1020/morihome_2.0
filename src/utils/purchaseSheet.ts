@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import { productOf } from '../data/ops';
 import type { PurchaseOrder, Requirement } from '../data/ops';
 
@@ -7,7 +6,9 @@ import type { PurchaseOrder, Requirement } from '../data/ops';
  * 訂單號留一欄畀廠家喺發貨表寫返嚟對數。
  * 欄名係廠家睇嘅資料（簡體），唔屬 UI string key。
  */
-export function downloadPurchaseSheet(po: PurchaseOrder, requirements: Requirement[]) {
+/** SheetJS 係 400KB+，只有撳「下載採購表」先載入，唔入首屏 bundle。 */
+export async function downloadPurchaseSheet(po: PurchaseOrder, requirements: Requirement[]) {
+  const XLSX = await import('xlsx');
   const reqById = new Map(requirements.map((r) => [r.id, r]));
   const rows = po.lines.map((l, i) => {
     const p = productOf(l.sku);

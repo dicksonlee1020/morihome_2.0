@@ -13,10 +13,16 @@ import type { GoogleAccount, Session } from './types';
  * session in localStorage for 30 days; otherwise it lives in sessionStorage
  * and ends with the tab.
  */
+/**
+ * Touching `window.localStorage` itself throws on iOS Safari when storage is
+ * blocked (third-party iframe with ITP, private mode), so even the lookup of
+ * the store object has to sit inside the try.
+ */
 function readStoredSession(): Session | null {
   if (typeof window === 'undefined') return null;
-  for (const store of [window.localStorage, window.sessionStorage]) {
+  for (const name of ['localStorage', 'sessionStorage'] as const) {
     try {
+      const store = window[name];
       const raw = store.getItem(SESSION_STORAGE_KEY);
       if (!raw) continue;
       const session = JSON.parse(raw) as Session;
