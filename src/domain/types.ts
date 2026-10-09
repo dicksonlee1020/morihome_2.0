@@ -20,6 +20,8 @@
  */
 export type LocationKey =
   | 'supplier'
+  | 'supplierTransit'
+  | 'customerTransit'
   | 'cnWarehouse'
   | 'transit'
   | 'hkWarehouse'
@@ -27,11 +29,12 @@ export type LocationKey =
   | 'customer'
   | 'returnArea'
   | 'stockLoss';
-
-export type LocationUsage = 'supplier' | 'internal' | 'transit' | 'customer' | 'loss';
-
+export type LocationUsage =
+  'supplier' | 'internal' | 'transit' | 'customer' | 'loss';
 export const LOCATION_USAGE: Record<LocationKey, LocationUsage> = {
   supplier: 'supplier',
+  supplierTransit: 'transit',
+  customerTransit: 'transit',
   cnWarehouse: 'internal',
   transit: 'transit',
   hkWarehouse: 'internal',
@@ -45,7 +48,13 @@ export const LOCATION_USAGE: Record<LocationKey, LocationUsage> = {
 export const IN_HK: LocationKey[] = ['hkWarehouse', 'showroom'];
 
 /** Still upstream of Hong Kong, §4 lineStatus. */
-export const UPSTREAM: LocationKey[] = ['supplier', 'cnWarehouse', 'transit'];
+export const UPSTREAM = [
+  `supplier`,
+  `supplierTransit`,
+  `cnWarehouse`,
+  `transit`,
+  `customerTransit`,
+];
 
 /* ------------------------------------------------------------ package units */
 
@@ -64,14 +73,9 @@ export interface PackageUnit {
 
 /** §3 — the only state machine in the system. */
 export type StockMoveState =
-  | 'draft'
-  | 'waiting'
-  | 'confirmed'
-  | 'assigned'
-  | 'done'
-  | 'cancelled';
-
+  'draft' | 'waiting' | 'confirmed' | 'assigned' | 'done' | 'cancelled';
 export type StockMoveType =
+  | 'purchaseShipment'
   | 'purchaseReceipt'
   | 'transit'
   | 'arrivalQc'
@@ -80,7 +84,6 @@ export type StockMoveType =
   | 'stocktakeAdjustment'
   | 'writeOff'
   | 'openingBalance';
-
 export interface StockMove {
   id: string;
   type: StockMoveType;
@@ -109,7 +112,6 @@ export interface CustomerRef {
   alias: string;
   district: string;
 }
-
 export interface SalesOrder {
   id: string;
   orderNo: string;
@@ -148,14 +150,36 @@ export type ActivityKind =
   | 'scheduleDelivery'
   | 'confirmArrival'
   | 'chaseSupplier'
-  | 'chasePayment';
-
-export type ActivityFeedback = 'unreachable' | 'customerPostponed' | 'scheduled';
-
+  | 'chasePayment'
+  | 'checkMissing'
+  | 'procurementException'
+  | 'other';
+export type ActivityFeedback =
+  'unreachable' | 'customerPostponed' | 'scheduled' | 'completed';
 export interface Activity {
+  taskType?: ActivityKind;
+  status?: 'open' | 'completed';
+  source?: 'workflow' | 'manual' | 'allocation' | 'receiving';
+  sourceRef?: string;
+  packageId?: string;
+  purchaseOrderId?: string;
+  sku?: string;
+  description?: string;
+  completionSource?: string;
+  contactAttempts?: {
+    at: string;
+    result?: string;
+    note?: string;
+    actor?: string;
+  }[];
+  history?: {
+    at: string;
+    action: string;
+    [key: string]: unknown;
+  }[];
   id: string;
   kind: ActivityKind;
-  orderId: string;
+  orderId: string | null;
   dueDate: string;
   owner: string;
   feedback: ActivityFeedback | null;

@@ -1,8 +1,10 @@
+> v13 update (2026-10-08): read `AGENTS.md` and `docs/prototype/v13-handoff.md` first. They supersede conflicting historical behaviour, scope and formatting below. Edit source and regenerate the accepted HTML; do not redesign the existing UI.
+
 # Morihome ERP 重構 — Claude Code 工作守則
 
 呢個 repo 係 Morihome（香港實木傢俬零售，10 人 SME）ERP 營運核心嘅重寫。
 設計已定案（v0.2），詳細 spec 喺 `docs/design/erp-redesign-spec.md` —— **做任何 feature 之前先讀相關章節**。
-可點擊原型（行為基準）喺 `docs/prototype/morihome-erp-prototype.html`。
+可點擊原型（行為基準）喺 `docs/prototype/Morihome-ERP-Prototype-v13-source-sync.html`。
 
 ## 五條 Invariant（任何情況下唔准違反）
 
@@ -34,7 +36,7 @@
 ## UI 規範（Ocean 重視，逐條係硬規則）
 
 - 資料表：所有日期／金額／數量欄必須 sortable；每頁講明預設排序（訂單＝落單日期降序）
-- 日期格式全 app 一個 formatter：列表 `MM-DD`（跨年先 `YYYY-MM-DD`）、詳情 `YYYY年M月D日`；唔准 inline format
+- 日期格式全 app 一個 formatter：日期 `YYYY-MM-DD`、日期時間 `YYYY-MM-DD HH:mm`（timeline 可用相對日期）；唔准 inline format
 - 一個 column 一件事：電話唔准同姓名夾欄；「逾期未送」等警示做行級紅點／chip，唔准塞入日期欄
 - scroll-x table：首欄 fixed left、操作 fixed right
 - 長文字欄一律 ellipsis + Tooltip；數字欄右對齊 + `font-variant-numeric: tabular-nums`

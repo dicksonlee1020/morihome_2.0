@@ -1,4 +1,9 @@
-import { useMemo, useState } from 'react';
+import {
+  CalendarOutlined,
+  DownloadOutlined,
+  MoreOutlined,
+  PlusOutlined,
+} from '@ant-design/icons';
 import {
   App,
   Button,
@@ -15,32 +20,29 @@ import {
   Tooltip,
   Typography,
 } from 'antd';
-import type { TableColumnsType } from 'antd';
-import { CalendarOutlined, DownloadOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons';
-import dayjs, { type Dayjs } from 'dayjs';
-import { packagesOfOrder, productOf, useOps } from '../data/ops';
-import type { Channel, PaymentState, SalesOrder } from '../data/ops';
-import { ORDER_BUCKETS, orderBucket, daysInHk } from '../domain/derive';
-import type { OrderBucket } from '../domain/derive';
-import { ESCALATION_DAYS_DEFAULT } from '../domain/derive';
-import { DEMO_TODAY, today } from '../domain/clock';
-import { colors } from '../theme';
-import { money } from '../utils/format';
-import { fmtDate, cmpDate } from '../utils/date';
-import { Pill } from '../components/Pill';
-import { BUCKET_META } from '../data/buckets';
+import dayjs from 'dayjs';
+import * as React from 'react';
+import { useAuth as MoriUseAuth } from '../auth/hooks';
 import { CardList } from '../components/CardList';
-import { FilterChip } from '../components/FilterChip';
 import { DataTableCard } from '../components/DataTableCard';
-import { useTablePagination } from '../utils/useTablePagination';
-import { useMockLoading } from '../utils/useMockLoading';
-import { useT } from '../i18n';
-import type { MessageKey } from '../i18n';
-import { useAuth } from '../auth';
-import { usePeek, useRegisterPeekList } from '../peek/hooks';
+import { FilterChip } from '../components/FilterChip';
+import { Pill } from '../components/Pill';
 import { can, canSee } from '../config/permissions';
+import { BUCKET_META } from '../data/buckets';
+import type { Channel, PaymentState, SalesOrder } from '../data/ops';
+import { packagesOfOrder, productOf, useOps } from '../data/ops';
+import { DEMO_TODAY, today } from '../domain/clock';
+import type { OrderBucket } from '../domain/derive';
+import { daysInHk, ORDER_BUCKETS, orderBucket } from '../domain/derive';
+import type { MessageKey } from '../i18n';
+import { useT as MoriUseT } from '../i18n/hooks';
+import { usePeek, useRegisterPeekList } from '../peek/hooks';
+import { colors } from '../theme';
+import { cmpDate, fmtDate } from '../utils/date';
+import { money, moriPhoneFormat } from '../utils/format';
 import type { Tone } from '../utils/tones';
-
+import { useMockLoading } from '../utils/useMockLoading';
+import { useTablePagination } from '../utils/useTablePagination';
 const { Text, Title } = Typography;
 
 /**
@@ -49,21 +51,33 @@ const { Text, Title } = Typography;
  * UI 規範：日期／金額／數量可排序，預設落單日期降序；電話獨立一欄；
  * 「逾期未送」係行級 chip，唔入日期欄；首欄 fixed left、操作 fixed right。
  */
-const PAYMENT_META: Record<PaymentState, { labelKey: MessageKey; tone: Tone }> = {
-  unpaid: { labelKey: 'orders.paymentStatus.unpaid', tone: 'error' },
-  deposit: { labelKey: 'orders.paymentStatus.deposit', tone: 'warning' },
-  paid: { labelKey: 'orders.paymentStatus.paid', tone: 'success' },
+const PAYMENT_META: Record<
+  PaymentState,
+  {
+    labelKey: MessageKey;
+    tone: Tone;
+  }
+> = {
+  unpaid: {
+    labelKey: 'orders.paymentStatus.unpaid',
+    tone: 'error',
+  },
+  deposit: {
+    labelKey: 'orders.paymentStatus.deposit',
+    tone: 'warning',
+  },
+  paid: {
+    labelKey: 'orders.paymentStatus.paid',
+    tone: 'success',
+  },
 };
-
 const CHANNEL_KEY: Record<Channel, MessageKey> = {
   shopify: 'orders.channel.shopify',
   showroom: 'orders.channel.showroom',
   whatsapp: 'orders.channel.whatsapp',
   phone: 'orders.channel.phone',
 };
-
 type Alert = 'overdue' | 'escalated';
-
 interface Row {
   order: SalesOrder;
   bucket: OrderBucket;
@@ -71,338 +85,580 @@ interface Row {
   amount: number;
   alerts: Alert[];
 }
-
 export function OrdersPage() {
-  const { message } = App.useApp();
-  const t = useT();
-  const { user } = useAuth();
-  const ops = useOps();
-  const role = user?.role ?? 'sales';
-  const showPii = canSee(role, 'CUSTOMER_PII');
-  const mayExecute = can(role, 'delivery', 'execute') || can(role, 'orders', 'execute');
-
-  const [buckets, setBuckets] = useState<OrderBucket[]>([]);
-  const [payments, setPayments] = useState<PaymentState[]>([]);
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
-  const [keyword, setKeyword] = useState('');
-  const [selected, setSelected] = useState<React.Key[]>([]);
-
-  /** 每張單嘅推導值只計一次 */
-  const all = useMemo<Row[]>(
+  var e;
+  let { message } = App.useApp();
+  let n = MoriUseT();
+  let { user } = MoriUseAuth();
+  let ops = useOps();
+  let role = (user == null ? undefined : user.role) ?? `sales`;
+  let showPii = canSee(role, `CUSTOMER_PII`);
+  let mayExecute =
+    can(role, `delivery`, `execute`) || can(role, `orders`, `execute`);
+  let [buckets, setBuckets] = React.useState<any>([]);
+  let [payments, setPayments] = React.useState<any>([]);
+  let [channels, setChannels] = React.useState<any>([]);
+  let [range, setRange] = React.useState<any>(null);
+  let [keyword, setKeyword] = React.useState<any>(``);
+  let [selected, setSelected] = React.useState<any>([]);
+  let all = React.useMemo(
     () =>
-      ops.orders.map((o) => {
-        const units = packagesOfOrder(ops, o.orderNo);
-        const bucket = orderBucket(units, o.delivery);
-        const alerts: Alert[] = [];
-        if (o.delivery.scheduledDate && !o.delivery.completedDate && o.delivery.scheduledDate < DEMO_TODAY && bucket !== 'completed') alerts.push('overdue');
-        if (bucket === 'toSchedule' && (daysInHk(units) ?? 0) >= ESCALATION_DAYS_DEFAULT) alerts.push('escalated');
+      ops.orders.map((e: any) => {
+        let t = packagesOfOrder(ops, e.orderNo);
+        let n = orderBucket(t, e.delivery);
+        let r: any[] = [];
+        if (
+          e.delivery.scheduledDate &&
+          !e.delivery.completedDate &&
+          e.delivery.scheduledDate < `2026-09-22` &&
+          n !== `completed`
+        ) {
+          r.push(`overdue`);
+        }
+        if (n === `toSchedule` && (daysInHk(t) ?? 0) >= 14) {
+          r.push(`escalated`);
+        }
         return {
-          order: o,
-          bucket,
-          qty: o.lines.reduce((n, l) => n + l.qty, 0),
-          amount: o.lines.reduce((n, l) => n + l.qty * l.price, 0),
-          alerts,
+          order: e,
+          bucket: n,
+          qty: e.lines.reduce((e: any, t: any) => e + t.qty, 0),
+          amount: e.lines.reduce((e: any, t: any) => e + t.qty * t.price, 0),
+          alerts: r,
         };
       }),
-    [ops]
+    [ops],
   );
-
-  const counts = useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const r of all) c[r.bucket] = (c[r.bucket] ?? 0) + 1;
-    return c;
+  let counts = React.useMemo(() => {
+    let e: any = {};
+    for (let t of all) e[t.bucket] = (e[t.bucket] ?? 0) + 1;
+    return e;
   }, [all]);
-
-  // §9.4 SCOPE_RULES driver.own_today：司機只見派畀本人 + 當日嘅單。
-  // TODO(Q14)：車隊 / 司機派單未有資料，暫以「今日已約」代替「派畀本人」。
-  const scoped = role === 'driver' ? all.filter((r) => r.order.delivery.scheduledDate === DEMO_TODAY && !r.order.delivery.completedDate) : all;
-
-  const rows = useMemo(() => {
-    const kw = keyword.trim().toLowerCase();
+  let scoped =
+    role === `driver`
+      ? all.filter(
+          (e: any) =>
+            e.order.delivery.scheduledDate === `2026-09-22` &&
+            !e.order.delivery.completedDate,
+        )
+      : all;
+  let rows = React.useMemo(() => {
+    let e = keyword.trim().toLowerCase();
     return scoped
-      .filter((r) => {
-        const o = r.order;
-        if (buckets.length > 0 && !buckets.includes(r.bucket)) return false;
-        if (payments.length > 0 && !payments.includes(o.payment)) return false;
-        if (channels.length > 0 && !channels.includes(o.channel)) return false;
+      .filter((t: any) => {
+        let n = t.order;
+        if (
+          (buckets.length > 0 && !buckets.includes(t.bucket)) ||
+          (payments.length > 0 && !payments.includes(n.payment)) ||
+          (channels.length > 0 && !channels.includes(n.channel))
+        )
+          return false;
         if (range) {
-          const d = dayjs(o.createdAt);
-          if (d.isBefore(range[0], 'day') || d.isAfter(range[1], 'day')) return false;
+          let e = dayjs(n.createdAt);
+          if (e.isBefore(range[0], `day`) || e.isAfter(range[1], `day`))
+            return false;
         }
-        if (!kw) return true;
         return (
-          o.orderNo.toLowerCase().includes(kw) ||
-          o.customer.alias.includes(kw) ||
-          o.customer.district.includes(kw) ||
-          (showPii && o.customer.phone.replace(/\s/g, '').includes(kw.replace(/\s/g, ''))) ||
-          o.lines.some((l) => {
-            const p = productOf(l.sku);
-            return (p?.name.toLowerCase().includes(kw) ?? false) || (p?.supplierName.toLowerCase().includes(kw) ?? false);
+          !e ||
+          n.orderNo.toLowerCase().includes(e) ||
+          n.customer.alias.includes(e) ||
+          n.customer.district.includes(e) ||
+          (showPii &&
+            n.customer.phone
+              .replace(/\s/g, ``)
+              .includes(e.replace(/\s/g, ``))) ||
+          n.lines.some((t: any) => {
+            let n = productOf(t.sku);
+            return (
+              t.sku.toLowerCase().includes(e) ||
+              ((n == null ? undefined : n.name.toLowerCase().includes(e)) ??
+                false) ||
+              ((n == null
+                ? undefined
+                : n.supplierName.toLowerCase().includes(e)) ??
+                false)
+            );
           })
         );
       })
-      .sort((a, b) => cmpDate(b.order.createdAt, a.order.createdAt) || b.order.orderNo.localeCompare(a.order.orderNo));
+      .sort(
+        (e: any, t: any) =>
+          cmpDate(t.order.createdAt, e.order.createdAt) ||
+          t.order.orderNo.localeCompare(e.order.orderNo),
+      );
   }, [scoped, buckets, payments, channels, range, keyword, showPii]);
-
-  const loading = useMockLoading();
-  const pagination = useTablePagination(rows.length);
-
-  // side-peek §1：row click 開右邊 peek；↑↓ 跟而家顯示緊嘅順序
-  const peek = usePeek();
-  useRegisterPeekList('order', rows.map((r) => r.order.orderNo));
-  const activeId = peek.target?.model === 'order' ? peek.target.id : null;
-
-  const stats = useMemo(() => {
-    const yesterday = today().subtract(1, 'day').format('YYYY-MM-DD');
+  let loading = useMockLoading();
+  let pagination = useTablePagination(rows.length);
+  let peek = usePeek();
+  useRegisterPeekList(
+    `order`,
+    rows.map((e: any) => e.order.orderNo),
+  );
+  let activeId =
+    ((e = peek.target) == null ? undefined : e.model) === `order`
+      ? peek.target!.id
+      : null;
+  let stats = React.useMemo(() => {
+    let e = today().subtract(1, `day`).format(`YYYY-MM-DD`);
     return {
-      yesterdayNew: all.filter((r) => r.order.createdAt === yesterday).length,
+      yesterdayNew: all.filter((t: any) => t.order.createdAt === e).length,
       notProcured: counts.notProcured ?? 0,
       toSchedule: counts.toSchedule ?? 0,
-      escalated: all.filter((r) => r.alerts.includes('escalated')).length,
+      escalated: all.filter((e: any) => e.alerts.includes(`escalated`)).length,
     };
   }, [all, counts]);
-
-  const filteredTotal = rows.reduce((n, r) => n + r.amount, 0);
-  const filtered = buckets.length > 0 || payments.length > 0 || channels.length > 0 || range != null || keyword !== '';
-  const clearFilters = () => {
+  let filteredTotal = rows.reduce((e: any, t: any) => e + t.amount, 0);
+  let filtered =
+    buckets.length > 0 ||
+    payments.length > 0 ||
+    channels.length > 0 ||
+    range != null ||
+    keyword !== ``;
+  let clearFilters = () => {
     setBuckets([]);
     setPayments([]);
     setChannels([]);
     setRange(null);
-    setKeyword('');
+    setKeyword(``);
   };
-
-  const alertChip = (a: Alert) =>
-    a === 'overdue' ? (
-      <Pill key={a} tone="error" dot>{t('orders.alert.overdue')}</Pill>
+  let alertChip = (e: any) =>
+    e === `overdue` ? (
+      <Pill tone={`error`} dot={true} key={e}>
+        {n(`orders.alert.overdue`)}
+      </Pill>
     ) : (
-      <Pill key={a} tone="error" dot>{t('orders.alert.escalated', { days: ESCALATION_DAYS_DEFAULT })}</Pill>
+      <Pill tone={`error`} dot={true} key={e}>
+        {n(`orders.alert.escalated`, {
+          days: 14,
+        })}
+      </Pill>
     );
-
-  const columns: TableColumnsType<Row> = [
+  let columns: any[] = [
     {
-      title: t('orders.col.id'),
-      key: 'orderNo',
+      title: n(`orders.col.id`),
+      key: `orderNo`,
       width: 110,
-      fixed: 'left',
-      sorter: (a, b) => a.order.orderNo.localeCompare(b.order.orderNo),
-      render: (_, r) => <Text style={{ fontWeight: 500 }}>{r.order.orderNo}</Text>,
+      fixed: `left`,
+      sorter: (e: any, t: any) =>
+        e.order.orderNo.localeCompare(t.order.orderNo),
+      render: (_e: any, t: any) => (
+        <Text
+          style={{
+            fontWeight: 500,
+          }}
+        >
+          {t.order.orderNo}
+        </Text>
+      ),
     },
     {
-      title: t('orders.col.orderedAt'),
-      key: 'createdAt',
+      title: n(`orders.col.orderedAt`),
+      key: `createdAt`,
       width: 112,
-      sorter: (a, b) => cmpDate(a.order.createdAt, b.order.createdAt),
-      defaultSortOrder: 'descend',
-      render: (_, r) => <Text type="secondary">{fmtDate(r.order.createdAt)}</Text>,
+      sorter: (e: any, t: any) => cmpDate(e.order.createdAt, t.order.createdAt),
+      defaultSortOrder: `descend`,
+      render: (_e: any, t: any) => (
+        <Text type={`secondary`}>{fmtDate(t.order.createdAt)}</Text>
+      ),
     },
     {
-      title: t('orders.col.customer'),
-      key: 'customer',
+      title: n(`orders.col.customer`),
+      key: `customer`,
       width: 110,
-      render: (_, r) => <Text ellipsis={{ tooltip: r.order.customer.alias }}>{r.order.customer.alias}</Text>,
+      render: (_e: any, t: any) => (
+        <Text
+          ellipsis={{
+            tooltip: t.order.customer.alias,
+          }}
+        >
+          {t.order.customer.alias}
+        </Text>
+      ),
     },
     ...(showPii
       ? [
           {
-            title: t('orders.col.phone'),
-            key: 'phone',
+            title: n(`orders.col.phone`),
+            key: `phone`,
             width: 110,
-            render: (_: unknown, r: Row) => <Text type="secondary" style={{ fontVariantNumeric: 'tabular-nums' }}>{r.order.customer.phone}</Text>,
-          } as TableColumnsType<Row>[number],
+            render: (_e: any, t: any) => (
+              <Text
+                type={`secondary`}
+                style={{
+                  fontVariantNumeric: `tabular-nums`,
+                }}
+              >
+                {moriPhoneFormat(t.order.customer.phone)}
+              </Text>
+            ),
+          },
         ]
       : []),
     {
-      title: t('orders.col.district'),
-      key: 'district',
+      title: n(`orders.col.district`),
+      key: `district`,
       width: 96,
-      sorter: (a, b) => a.order.customer.district.localeCompare(b.order.customer.district),
-      render: (_, r) => <Text>{r.order.customer.district}</Text>,
+      sorter: (e: any, t: any) =>
+        e.order.customer.district.localeCompare(t.order.customer.district),
+      render: (_e: any, t: any) => <Text>{t.order.customer.district}</Text>,
     },
     {
-      title: t('orders.col.channel'),
-      key: 'channel',
+      title: n(`orders.col.channel`),
+      key: `channel`,
       width: 96,
-      render: (_, r) => <Pill tone="muted">{t(CHANNEL_KEY[r.order.channel])}</Pill>,
+      render: (_e: any, t: any) => (
+        <Pill tone={`muted`}>
+          {n(CHANNEL_KEY[t.order.channel as keyof typeof CHANNEL_KEY])}
+        </Pill>
+      ),
     },
     {
-      title: t('orders.col.items'),
-      key: 'items',
+      title: n(`orders.col.items`),
+      key: `items`,
       width: 220,
-      render: (_, r) => {
-        const first = productOf(r.order.lines[0].sku);
-        const label = first ? first.name : r.order.lines[0].sku;
-        const more = r.order.lines.length > 1 ? ` +${r.order.lines.length - 1}` : '';
+      render: (_e: any, t: any) => {
+        let n = productOf(t.order.lines[0].sku);
+        let r = n ? n.name : t.order.lines[0].sku;
+        let i = t.order.lines.length > 1 ? ` +${t.order.lines.length - 1}` : ``;
         return (
-          <Text ellipsis={{ tooltip: r.order.lines.map((l) => `${productOf(l.sku)?.name ?? l.sku} × ${l.qty}`).join('、') }}>
-            {label}
-            {more && <Text type="secondary">{more}</Text>}
+          <Text
+            ellipsis={{
+              tooltip: t.order.lines
+                .map((e: any) => {
+                  var t;
+                  return `${((t = productOf(e.sku)) == null ? undefined : t.name) ?? e.sku} × ${e.qty}`;
+                })
+                .join(`、`),
+            }}
+          >
+            {r}
+            {i && <Text type={`secondary`}>{i}</Text>}
           </Text>
         );
       },
     },
     {
-      title: t('orders.col.qty'),
-      key: 'qty',
+      title: n(`orders.col.qty`),
+      key: `qty`,
       width: 72,
-      align: 'right',
-      sorter: (a, b) => a.qty - b.qty,
-      render: (_, r) => <Text style={{ fontVariantNumeric: 'tabular-nums' }}>{r.qty}</Text>,
+      align: `right`,
+      sorter: (e: any, t: any) => e.qty - t.qty,
+      render: (_e: any, t: any) => (
+        <Text
+          style={{
+            fontVariantNumeric: `tabular-nums`,
+          }}
+        >
+          {t.qty}
+        </Text>
+      ),
     },
     {
-      title: t('orders.col.amount'),
-      key: 'amount',
+      title: n(`orders.col.amount`),
+      key: `amount`,
       width: 110,
-      align: 'right',
-      sorter: (a, b) => a.amount - b.amount,
-      render: (_, r) => <Text style={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{money(r.amount)}</Text>,
+      align: `right`,
+      sorter: (e: any, t: any) => e.amount - t.amount,
+      render: (_e: any, t: any) => (
+        <Text
+          style={{
+            fontWeight: 500,
+            fontVariantNumeric: `tabular-nums`,
+          }}
+        >
+          {money(t.amount)}
+        </Text>
+      ),
     },
     {
-      title: t('orders.col.payment'),
-      key: 'payment',
+      title: n(`orders.col.payment`),
+      key: `payment`,
       width: 96,
-      sorter: (a, b) => a.order.payment.localeCompare(b.order.payment),
-      render: (_, r) => {
-        const m = PAYMENT_META[r.order.payment];
-        return <Pill tone={m.tone} dot>{t(m.labelKey)}</Pill>;
+      sorter: (e: any, t: any) =>
+        e.order.payment.localeCompare(t.order.payment),
+      render: (_e: any, t: any) => {
+        let r = PAYMENT_META[t.order.payment as keyof typeof PAYMENT_META];
+        return (
+          <Pill tone={r.tone} dot={true}>
+            {n(r.labelKey)}
+          </Pill>
+        );
       },
     },
     {
-      title: t('common.status'),
-      key: 'bucket',
+      title: n(`orders.col.status`),
+      key: `bucket`,
       width: 110,
-      sorter: (a, b) => ORDER_BUCKETS.indexOf(a.bucket) - ORDER_BUCKETS.indexOf(b.bucket),
-      render: (_, r) => {
-        const m = BUCKET_META[r.bucket];
-        return <Pill tone={m.tone} dot>{t(m.labelKey)}</Pill>;
+      sorter: (e: any, t: any) =>
+        ORDER_BUCKETS.indexOf(e.bucket) - ORDER_BUCKETS.indexOf(t.bucket),
+      render: (_e: any, t: any) => {
+        let r = BUCKET_META[t.bucket as keyof typeof BUCKET_META];
+        return (
+          <Pill tone={r.tone} dot={true}>
+            {n(r.labelKey)}
+          </Pill>
+        );
       },
     },
     {
-      title: t('orders.col.deliveryAt'),
-      key: 'scheduledDate',
+      title: n(`orders.col.deliveryAt`),
+      key: `scheduledDate`,
       width: 112,
-      sorter: (a, b) => cmpDate(a.order.delivery.scheduledDate, b.order.delivery.scheduledDate),
-      render: (_, r) =>
-        r.order.delivery.scheduledDate ? (
-          <Text>{fmtDate(r.order.delivery.completedDate ?? r.order.delivery.scheduledDate)}</Text>
+      sorter: (e: any, t: any) =>
+        cmpDate(e.order.delivery.scheduledDate, t.order.delivery.scheduledDate),
+      render: (_e: any, t: any) =>
+        t.order.delivery.scheduledDate ? (
+          <Text>{fmtDate(t.order.delivery.scheduledDate)}</Text>
         ) : (
-          <Text type="secondary">{t('orders.notScheduled')}</Text>
+          <Text type={`secondary`}>{n(`orders.notScheduled`)}</Text>
         ),
     },
     {
-      title: t('orders.col.alerts'),
-      key: 'alerts',
+      title: n(`orders.col.alerts`),
+      key: `alerts`,
       width: 140,
-      render: (_, r) => (r.alerts.length ? <Flex gap={4} wrap>{r.alerts.map(alertChip)}</Flex> : <Text type="secondary">—</Text>),
+      render: (_e: any, t: any) =>
+        t.alerts.length ? (
+          <Flex gap={4} wrap={true}>
+            {t.alerts.map(alertChip)}
+          </Flex>
+        ) : (
+          <Text type={`secondary`}>{`—`}</Text>
+        ),
     },
     {
-      title: '',
-      key: 'actions',
+      title: ``,
+      key: `actions`,
       width: 150,
-      fixed: 'right',
-      render: (_, r) => (
-        <Flex gap={4} justify="flex-end" onClick={(e) => e.stopPropagation()}>
-          {mayExecute && r.bucket === 'toSchedule' && (
-            <Button size="small" icon={<CalendarOutlined />} onClick={() => message.info(t('orders.scheduleDemo', { order: r.order.orderNo }))}>
-              {t('orders.action.schedule')}
+      fixed: `right`,
+      render: (_e: any, r: any) => (
+        <Flex
+          gap={4}
+          justify={`flex-end`}
+          onClick={(e: any) => e.stopPropagation()}
+        >
+          {mayExecute && r.bucket === `toSchedule` && (
+            <Button
+              size={`small`}
+              icon={<CalendarOutlined />}
+              onClick={() =>
+                message.info(
+                  n(`orders.scheduleDemo`, {
+                    order: r.order.orderNo,
+                  }),
+                )
+              }
+            >
+              {n(`orders.action.schedule`)}
             </Button>
           )}
           <Dropdown
-            trigger={['click']}
+            trigger={[`click`]}
             menu={{
               items: [
-                { key: 'detail', label: t('orders.action.detail') },
-                { key: 'export', label: t('orders.action.exportOne') },
+                {
+                  key: `detail`,
+                  label: n(`orders.action.detail`),
+                },
+                {
+                  key: `export`,
+                  label: n(`orders.action.exportOne`),
+                },
               ],
-              onClick: () => message.info(t('common.notWired')),
+              onClick: () => message.info(n(`common.notWired`)),
             }}
           >
-            <Button type="text" size="small" icon={<MoreOutlined />} aria-label={t('orders.action.more')} />
+            <Button
+              type={`text`}
+              size={`small`}
+              icon={<MoreOutlined />}
+              aria-label={n(`orders.action.more`)}
+            />
           </Dropdown>
         </Flex>
       ),
     },
   ];
-
-  const bucketOptions = ORDER_BUCKETS.map((b) => ({
-    value: b,
+  let bucketOptions = ORDER_BUCKETS.map((e: any) => ({
+    value: e,
     label: (
-      <Flex justify="space-between" gap={12} style={{ flexGrow: 1 }}>
-        <Pill tone={BUCKET_META[b].tone} dot>{t(BUCKET_META[b].labelKey)}</Pill>
-        <Text type="secondary">{counts[b] ?? 0}</Text>
+      <Flex
+        justify={`space-between`}
+        gap={12}
+        style={{
+          flexGrow: 1,
+        }}
+      >
+        <Pill tone={BUCKET_META[e as keyof typeof BUCKET_META].tone} dot={true}>
+          {n(BUCKET_META[e as keyof typeof BUCKET_META].labelKey)}
+        </Pill>
+        <Text type={`secondary`}>{counts[e] ?? 0}</Text>
       </Flex>
     ),
   }));
-  const paymentOptions = (Object.keys(PAYMENT_META) as PaymentState[]).map((v) => ({
-    value: v,
-    label: <Pill tone={PAYMENT_META[v].tone} dot>{t(PAYMENT_META[v].labelKey)}</Pill>,
+  let paymentOptions = Object.keys(PAYMENT_META).map((e: any) => ({
+    value: e,
+    label: (
+      <Pill tone={PAYMENT_META[e as keyof typeof PAYMENT_META].tone} dot={true}>
+        {n(PAYMENT_META[e as keyof typeof PAYMENT_META].labelKey)}
+      </Pill>
+    ),
   }));
-  const channelOptions = (Object.keys(CHANNEL_KEY) as Channel[]).map((v) => ({ value: v, label: t(CHANNEL_KEY[v]) }));
-
+  let channelOptions = Object.keys(CHANNEL_KEY).map((e: any) => ({
+    value: e,
+    label: n(CHANNEL_KEY[e as keyof typeof CHANNEL_KEY]),
+  }));
   return (
-    <Flex vertical gap={12}>
-      <Flex align="center" justify="space-between" wrap gap={12}>
-        <Flex vertical gap={2}>
-          <Title level={1} style={{ margin: 0 }}>{t('orders.title')}</Title>
-          <Text type="secondary">{t('orders.subtitle', { date: fmtDate(DEMO_TODAY, 'detail') })}</Text>
+    <Flex vertical={true} gap={12}>
+      <Flex align={`center`} justify={`space-between`} wrap={true} gap={12}>
+        <Flex vertical={true} gap={2}>
+          <Title
+            level={1}
+            style={{
+              margin: 0,
+            }}
+          >
+            {n(`orders.title`)}
+          </Title>
+          <Text type={`secondary`}>
+            {n(`orders.subtitle`, {
+              date: fmtDate(DEMO_TODAY, `detail`),
+            })}
+          </Text>
         </Flex>
         <Space>
-          {can(role, 'orders', 'export') && (
-            <Button icon={<DownloadOutlined />} onClick={() => message.success(t('common.exported'))}>{t('common.export')}</Button>
+          {can(role, `orders`, `export`) && (
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={() => message.success(n(`common.exported`))}
+            >
+              {n(`common.export`)}
+            </Button>
           )}
-          {/* TODO(Q16)：訂單入口未定（全部經 Shopify 定 ERP 自己收單）。掣先留，功能等 Ocean 答。 */}
-          {can(role, 'orders', 'edit') && (
-            <Tooltip title={t('orders.newHint')}>
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info(t('orders.newHint'))}>{t('orders.new')}</Button>
+          {can(role, `orders`, `edit`) && (
+            <Tooltip title={n(`orders.newHint`)}>
+              <Button
+                type={`primary`}
+                icon={<PlusOutlined />}
+                onClick={() => message.info(n(`orders.newHint`))}
+              >
+                {n(`orders.new`)}
+              </Button>
             </Tooltip>
           )}
         </Space>
       </Flex>
-
       <Row gutter={[12, 12]}>
         {[
-          { title: t('orders.stat.yesterdayNew'), value: stats.yesterdayNew },
-          { title: t('orders.bucket.notProcured'), value: stats.notProcured, color: colors.warningText },
-          { title: t('orders.bucket.toSchedule'), value: stats.toSchedule, color: colors.warningText },
-          { title: t('orders.stat.escalated', { days: ESCALATION_DAYS_DEFAULT }), value: stats.escalated, color: colors.error },
-        ].map((s) => (
-          <Col key={s.title} xs={12} lg={6}>
-            <Card size="small">
-              <Statistic title={s.title} value={s.value} styles={{ content: { fontSize: 22, fontWeight: 600, color: s.value > 0 ? s.color : undefined } }} />
+          {
+            title: n(`orders.stat.yesterdayNew`),
+            value: stats.yesterdayNew,
+          },
+          {
+            title: n(`orders.bucket.notProcured`),
+            value: stats.notProcured,
+            color: colors.warningText,
+          },
+          {
+            title: n(`orders.bucket.toSchedule`),
+            value: stats.toSchedule,
+            color: colors.warningText,
+          },
+          {
+            title: n(`orders.stat.escalated`, {
+              days: 14,
+            }),
+            value: stats.escalated,
+            color: colors.error,
+          },
+        ].map((e: any) => (
+          <Col xs={12} lg={6} key={e.title}>
+            <Card size={`small`}>
+              <Statistic
+                title={e.title}
+                value={e.value}
+                styles={{
+                  content: {
+                    fontSize: 22,
+                    fontWeight: 600,
+                    color: e.value > 0 ? e.color : undefined,
+                  },
+                }}
+              />
             </Card>
           </Col>
         ))}
       </Row>
-
       <DataTableCard
         filters={
           <>
-            <FilterChip label={t('orders.filter.status')} options={bucketOptions} value={buckets} onChange={setBuckets} />
-            <FilterChip label={t('orders.filter.payment')} options={paymentOptions} value={payments} onChange={setPayments} />
-            <FilterChip label={t('orders.col.channel')} options={channelOptions} value={channels} onChange={setChannels} />
+            <FilterChip
+              label={n(`orders.filter.status`)}
+              options={bucketOptions}
+              value={buckets}
+              onChange={setBuckets}
+            />
+            <FilterChip
+              label={n(`orders.filter.payment`)}
+              options={paymentOptions}
+              value={payments}
+              onChange={setPayments}
+            />
+            <FilterChip
+              label={n(`orders.col.channel`)}
+              options={channelOptions}
+              value={channels}
+              onChange={setChannels}
+            />
             <DatePicker.RangePicker
               value={range}
-              onChange={(v) => setRange(v as [Dayjs, Dayjs] | null)}
-              placeholder={[t('orders.dateFrom'), t('orders.dateTo')]}
-              style={{ width: 240 }}
+              onChange={(e: any) => setRange(e)}
+              placeholder={[n(`orders.dateFrom`), n(`orders.dateTo`)]}
+              style={{
+                width: 240,
+              }}
             />
           </>
         }
         onClearFilters={filtered ? clearFilters : undefined}
-        search={{ value: keyword, onChange: setKeyword, placeholder: t('orders.search'), width: 280 }}
-        count={`${t('orders.summary.count', { n: rows.length })} · ${t('orders.summary.total', { amount: money(filteredTotal) })}`}
+        search={{
+          value: keyword,
+          onChange: setKeyword,
+          placeholder: n(`orders.search`),
+          width: 280,
+        }}
+        count={`${n(`orders.summary.count`, {
+          n: rows.length,
+        })} · ${n(`orders.summary.total`, {
+          amount: money(filteredTotal),
+        })}`}
         selection={{
           count: selected.length,
-          text: t('orders.selected', { n: selected.length }),
+          text: n(`orders.selected`, {
+            n: selected.length,
+          }),
           actions: (
             <>
               {mayExecute && (
-                <Button size="small" icon={<CalendarOutlined />} onClick={() => message.success(t('orders.bulk.scheduled', { n: selected.length }))}>
-                  {t('orders.bulk.schedule')}
+                <Button
+                  size={`small`}
+                  icon={<CalendarOutlined />}
+                  onClick={() =>
+                    message.success(
+                      n(`orders.bulk.scheduled`, {
+                        n: selected.length,
+                      }),
+                    )
+                  }
+                >
+                  {n(`orders.bulk.schedule`)}
                 </Button>
               )}
-              <Button size="small" onClick={() => message.success(t('common.exported'))}>{t('orders.bulk.export')}</Button>
+              <Button
+                size={`small`}
+                onClick={() => message.success(n(`common.exported`))}
+              >
+                {n(`orders.bulk.export`)}
+              </Button>
             </>
           ),
           onClear: () => setSelected([]),
@@ -410,24 +666,75 @@ export function OrdersPage() {
         mobile={
           <CardList
             items={rows}
-            rowKey={(r) => r.order.id}
-            emptyText={t('orders.empty')}
-            renderItem={(r) => {
-              const m = BUCKET_META[r.bucket];
+            rowKey={(e: any) => e.order.id}
+            emptyText={n(`orders.empty`)}
+            renderItem={(e: any) => {
+              let r = BUCKET_META[e.bucket as keyof typeof BUCKET_META];
               return (
-                <Card size="small" styles={{ body: { padding: '12px 16px' } }} onClick={() => peek.open({ model: 'order', id: r.order.orderNo })}>
-                  <Flex vertical gap={8}>
-                    <Flex justify="space-between" align="center" gap={8}>
-                      <Text style={{ fontWeight: 600 }}>{r.order.orderNo} · {r.order.customer.alias} · {r.order.customer.district}</Text>
-                      <Pill tone={m.tone} dot>{t(m.labelKey)}</Pill>
+                <Card
+                  size={`small`}
+                  styles={{
+                    body: {
+                      padding: `12px 16px`,
+                    },
+                  }}
+                  onClick={() =>
+                    peek.open({
+                      model: `order`,
+                      id: e.order.orderNo,
+                    })
+                  }
+                >
+                  <Flex vertical={true} gap={8}>
+                    <Flex justify={`space-between`} align={`center`} gap={8}>
+                      <Text
+                        style={{
+                          fontWeight: 600,
+                        }}
+                      >
+                        {e.order.orderNo}
+                        {` · `}
+                        {e.order.customer.alias}
+                        {` · `}
+                        {e.order.customer.district}
+                      </Text>
+                      <Pill tone={r.tone} dot={true}>
+                        {n(r.labelKey)}
+                      </Pill>
                     </Flex>
-                    <Text type="secondary">
-                      {fmtDate(r.order.createdAt)} · {t(CHANNEL_KEY[r.order.channel])} · {r.qty} {t('orders.unitItems')} · {money(r.amount)}
+                    <Text type={`secondary`}>
+                      {fmtDate(e.order.createdAt)}
+                      {` · `}
+                      {n(
+                        CHANNEL_KEY[
+                          e.order.channel as keyof typeof CHANNEL_KEY
+                        ],
+                      )}
+                      {` · `}
+                      {e.qty}
+                      {` `}
+                      {n(`orders.unitItems`)}
+                      {` · `}
+                      {money(e.amount)}
                     </Text>
-                    {r.alerts.length > 0 && <Flex gap={4} wrap>{r.alerts.map(alertChip)}</Flex>}
-                    {mayExecute && r.bucket === 'toSchedule' && (
-                      <Button icon={<CalendarOutlined />} onClick={(e) => { e.stopPropagation(); message.info(t('orders.scheduleDemo', { order: r.order.orderNo })); }}>
-                        {t('orders.action.schedule')}
+                    {e.alerts.length > 0 && (
+                      <Flex gap={4} wrap={true}>
+                        {e.alerts.map(alertChip)}
+                      </Flex>
+                    )}
+                    {mayExecute && e.bucket === `toSchedule` && (
+                      <Button
+                        icon={<CalendarOutlined />}
+                        onClick={(r: any) => {
+                          r.stopPropagation();
+                          message.info(
+                            n(`orders.scheduleDemo`, {
+                              order: e.order.orderNo,
+                            }),
+                          );
+                        }}
+                      >
+                        {n(`orders.action.schedule`)}
                       </Button>
                     )}
                   </Flex>
@@ -437,17 +744,38 @@ export function OrdersPage() {
           />
         }
       >
-        <Table<Row>
+        <Table
           loading={loading}
-          rowKey={(r) => r.order.id}
+          rowKey={(e: any) => e.order.id}
           columns={columns}
           dataSource={rows}
-          scroll={{ x: 1500 }}
+          scroll={{
+            x: 1500,
+          }}
           pagination={pagination}
-          rowSelection={{ selectedRowKeys: selected, onChange: setSelected, columnWidth: 48, onCell: () => ({ onClick: (e) => e.stopPropagation() }) }}
-          rowClassName={(r) => (r.order.orderNo === activeId ? 'mori-row-active' : 'mori-row-clickable')}
-          onRow={(r) => ({ onClick: () => peek.open({ model: 'order', id: r.order.orderNo }) })}
-          locale={{ emptyText: <Empty description={t('orders.empty')} /> }}
+          rowSelection={{
+            selectedRowKeys: selected,
+            onChange: setSelected,
+            columnWidth: 48,
+            onCell: () => ({
+              onClick: (e: any) => e.stopPropagation(),
+            }),
+          }}
+          rowClassName={(e: any) =>
+            e.order.orderNo === activeId
+              ? `mori-row-active`
+              : `mori-row-clickable`
+          }
+          onRow={(e: any) => ({
+            onClick: () =>
+              peek.open({
+                model: `order`,
+                id: e.order.orderNo,
+              }),
+          })}
+          locale={{
+            emptyText: <Empty description={n(`orders.empty`)} />,
+          }}
         />
       </DataTableCard>
     </Flex>

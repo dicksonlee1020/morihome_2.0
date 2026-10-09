@@ -1,25 +1,19 @@
 export type OrderStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'preparing'
-  | 'ready'
-  | 'delivered'
-  | 'cancelled';
-
+  'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
 export type PaymentStatus = 'unpaid' | 'deposit' | 'paid' | 'refunded';
-
 export type Channel = 'shopify' | 'whatsapp' | 'showroom' | 'phone';
-
 export interface OrderItem {
   sku: string;
   name: string;
   qty: number;
   price: number;
 }
-
 export interface Order {
   id: string;
-  customer: { name: string; phone: string };
+  customer: {
+    name: string;
+    phone: string;
+  };
   channel: Channel;
   createdAt: string;
   /** null = 未約到送貨日 */
@@ -30,10 +24,8 @@ export interface Order {
   assignee: string;
   remark?: string;
 }
-
 export const orderTotal = (o: Order) =>
   o.items.reduce((sum, i) => sum + i.qty * i.price, 0);
-
 export const orderQty = (o: Order) =>
   o.items.reduce((sum, i) => sum + i.qty, 0);
 
@@ -47,7 +39,6 @@ export type ProductStatus = 'active' | 'draft' | 'archived';
  * variants carry a safety stock and appear on the restock sheet.
  */
 export type SourcingType = 'stocked' | 'orderOnDemand' | 'custom';
-
 export interface Stock {
   /** 葵涌倉在倉數 */
   main: number;
@@ -60,7 +51,6 @@ export interface Stock {
   safetyStock: number;
   countedAt: string;
 }
-
 export interface Product {
   sku: string;
   name: string;
@@ -85,20 +75,17 @@ export interface Product {
   stock: Stock;
   updatedAt: string;
 }
-
 export type StockState = 'out' | 'low' | 'ok';
-
-export const onHand = (s: Stock) => s.main + s.shop;
+export const onHand = (e: any) => e.main + (e.cn || 0) + e.shop;
 
 /** 可售 = 在倉 − 已預留。落單睇嘅係呢個數，唔係在倉數。 */
-export const sellable = (s: Stock) => Math.max(0, onHand(s) - s.reserved);
-
+export const sellable = (e: any) =>
+  e.availableHK ?? Math.max(0, onHand(e) - e.reserved);
 export const stockState = (s: Stock): StockState => {
   const avail = sellable(s);
   if (avail <= 0) return 'out';
   if (avail < s.safetyStock) return 'low';
   return 'ok';
 };
-
 export const margin = (p: Product) =>
   p.price > 0 ? (p.price - p.cost) / p.price : 0;
