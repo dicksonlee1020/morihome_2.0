@@ -1,14 +1,14 @@
 // One self-contained HTML (JS, CSS and brand images inlined) that opens by
 // double-click from Downloads, no server needed.
 //   node scripts/build-single.mjs  →  dist-single/morihome-erp.html
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
 const out = path.join(root, 'dist-single');
 fs.rmSync(out, { recursive: true, force: true });
-execSync('npx vite build --logLevel error', { cwd: root, stdio: 'inherit', env: { ...process.env, SINGLE: '1' } });
+execFileSync(process.execPath, [path.join(root, 'node_modules/vite/bin/vite.js'), 'build', '--logLevel', 'error', ...(process.env.MORI_BUILD_MODE === 'test-browser' ? ['--mode', 'test-browser'] : [])], { cwd: root, stdio: 'inherit', env: { ...process.env, SINGLE: '1' } });
 
 const read = (p) => fs.readFileSync(path.join(out, p));
 let html = read('index.html').toString();

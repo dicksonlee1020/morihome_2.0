@@ -9,7 +9,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 // 網絡慢（或者擋咗 Google Fonts）時成個 app 等住唔行。載唔到就用系統字。
 const font = document.createElement('link');
 font.rel = 'stylesheet';
-font.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap';
+font.href =
+  'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap';
 document.head.appendChild(font);
 
 const rootEl = document.getElementById('root')!;
@@ -19,5 +20,8 @@ createRoot(rootEl).render(
     <ErrorBoundary>
       <App />
     </ErrorBoundary>
-  </StrictMode>
+  </StrictMode>,
 );
+
+if (import.meta.env.MODE === 'test-browser')
+  void import('../tests/browser/harness');

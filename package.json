@@ -1,14 +1,16 @@
 {
   "name": "morihome-erp",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.13.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:single": "npm run build && node scripts/build-single.mjs",
+    "test:browser": "node scripts/test-browser.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.4",
@@ -25,6 +27,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "opencc-js": "^1.4.2",
     "oxlint": "^1.81.0",
+    "playwright": "1.62.1",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"

@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
 import { Empty, Flex, Pagination } from 'antd';
 import type { ReactNode } from 'react';
-import { useT } from '../i18n';
-
+import * as React from 'react';
+import { useT as MoriUseT } from '../i18n/hooks';
+import { colors } from '../theme';
 interface CardListProps<T> {
   items: T[];
   rowKey: (item: T) => string;
@@ -23,42 +23,69 @@ export function CardList<T>({
   pageSize = 10,
   emptyText,
 }: CardListProps<T>) {
-  const t = useT();
-  const [page, setPage] = useState(1);
-  const [seen, setSeen] = useState(items);
-
-  // 篩選一變就跳返第一頁，否則會停喺一版空白。
-  // 喺 render 期間校正（React 官方做法），擺落 effect 會多 render 一次仲會閃。
+  let a = MoriUseT();
+  let [page, setPage] = React.useState<any>(1);
+  let [seen, setSeen] = React.useState<any>(items);
   if (items !== seen) {
-    setSeen(items);
-    setPage(1);
+    {
+      setSeen(items);
+      setPage(1);
+    }
   }
-
-  const slice = useMemo(
+  let slice = React.useMemo(
     () => items.slice((page - 1) * pageSize, page * pageSize),
-    [items, page, pageSize]
+    [items, page, pageSize],
   );
-
-  if (items.length === 0) return <Empty description={emptyText ?? t('common.empty')} />;
-
-  return (
-    <Flex vertical gap={8}>
-      {slice.map((item) => (
-        <div key={rowKey(item)}>{renderItem(item)}</div>
+  let d = Math.min(items.length, (page - 1) * pageSize + 1);
+  let f = Math.min(items.length, page * pageSize);
+  return items.length === 0 ? (
+    <Empty description={emptyText ?? a(`common.empty`)} />
+  ) : (
+    <Flex vertical={true} gap={8}>
+      {slice.map((e: any) => (
+        <div key={rowKey(e)}>{renderItem(e)}</div>
       ))}
-      <Pagination
-        align="center"
-        size="small"
-        current={page}
-        pageSize={pageSize}
-        total={items.length}
-        onChange={setPage}
-        showSizeChanger={false}
-        showTotal={(total, r) =>
-          t('common.pageTotal', { from: r[0], to: r[1], total: total.toLocaleString('en-HK') })
+      <Flex
+        vertical={true}
+        gap={4}
+        align={`center`}
+        style={{
+          width: `100%`,
+          paddingTop: 4,
+        }}
+      >
+        {
+          <span
+            style={{
+              fontSize: 12,
+              color: colors.textSecondary,
+              lineHeight: 1.4,
+              textAlign: `center`,
+              whiteSpace: `normal`,
+            }}
+          >
+            {a(`common.pageTotal`, {
+              from: d,
+              to: f,
+              total: items.length.toLocaleString(`en-HK`),
+            })}
+          </span>
         }
-        style={{ marginTop: 4 }}
-      />
+        <Pagination
+          align={`center`}
+          size={`small`}
+          simple={true}
+          current={page}
+          pageSize={pageSize}
+          total={items.length}
+          onChange={setPage}
+          showSizeChanger={false}
+          style={{
+            marginTop: 0,
+            maxWidth: `100%`,
+          }}
+        />
+      </Flex>
     </Flex>
   );
 }

@@ -378,3 +378,5 @@ export function revokeGrant(id: string, actor: StaffUser): AdminResult {
 
 /** 權限矩陣畫面用：每個 module 每個角色嘅 action 清單（只讀，registry 係 code） */
 export const roleOptions = ROLES;
+
+export { accountOf };

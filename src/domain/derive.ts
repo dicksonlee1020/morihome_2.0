@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
+import { moriOrderShortage, opsState, requirementStatus } from '../data/ops';
 import { today } from './clock';
-import { IN_HK, UPSTREAM } from './types';
 import type {
   Activity,
   ActivityState,
@@ -8,6 +8,7 @@ import type {
   LineStatus,
   PackageUnit,
 } from './types';
+import { IN_HK, UPSTREAM } from './types';
 
 /**
  * SPEC REF §4 — every value here is computed on read. None of these has a
@@ -27,17 +28,48 @@ import type {
  * reads inTransit even if another box already reached the customer, because
  * "三件齊晒先約得客" is the rule the screen has to enforce.
  */
-export function lineStatus(units: Pick<PackageUnit, 'location'>[]): LineStatus {
-  if (units.length === 0) return 'notProcured';
-  if (units.some((u) => UPSTREAM.includes(u.location))) return 'inTransit';
-  if (units.every((u) => IN_HK.includes(u.location))) return 'readyToSchedule';
-  if (units.every((u) => u.location === 'customer')) return 'delivered';
-  if (units.some((u) => u.location === 'customer')) return 'partiallyDelivered';
-  // Everything else is sitting in the return area or written off; it is not
-  // schedulable and not delivered, so the line still needs procurement work.
-  return 'notProcured';
+export function lineStatus(units: any, state: any = opsState) {
+  if (units.some((p: any) => p.exception || p.quarantined)) return `inTransit`;
+  if (
+    units.some((p: any) => p.location === `customer`) &&
+    units.some((p: any) => p.location === `customerTransit`)
+  )
+    return `partiallyDelivered`;
+  let refs = new Set<any>(units.map((p: any) => p.orderNo).filter(Boolean));
+  if (
+    units.length &&
+    state.requirements.some(
+      (r: any) =>
+        refs.has(r.orderNo) &&
+        r.sourcing === `orderNew` &&
+        r.qty > 0 &&
+        !r.cancelledAt &&
+        !r.supersededAt &&
+        ![`ordered`, `partialConfirmed`, `confirmationDeferred`].includes(
+          requirementStatus(r, state.purchaseOrders),
+        ),
+    )
+  )
+    return `inTransit`;
+  if (
+    units.length &&
+    state.orders.some(
+      (o: any) => refs.has(o.orderNo) && moriOrderShortage(o, state),
+    )
+  )
+    return `inTransit`;
+  return units.length === 0
+    ? `notProcured`
+    : units.some((e: any) => UPSTREAM.includes(e.location))
+      ? `inTransit`
+      : units.every((e: any) => IN_HK.includes(e.location))
+        ? `readyToSchedule`
+        : units.every((e: any) => e.location === `customer`)
+          ? `delivered`
+          : units.some((e: any) => e.location === `customer`)
+            ? `partiallyDelivered`
+            : `notProcured`;
 }
-
 const LINE_RANK: Record<LineStatus, number> = {
   notProcured: 0,
   inTransit: 1,
@@ -71,8 +103,9 @@ export function activityState(activity: Activity): ActivityState {
 
 /** §4 可售 = units in HK/showroom with no order line attached. */
 export function sellableQty(units: PackageUnit[]): number {
-  return units.filter((u) => u.orderLineId == null && IN_HK.includes(u.location))
-    .length;
+  return units.filter(
+    (u) => u.orderLineId == null && IN_HK.includes(u.location),
+  ).length;
 }
 
 /**
@@ -84,7 +117,9 @@ export function sellableQty(units: PackageUnit[]): number {
 export const ESCALATION_DAYS_DEFAULT = 14;
 
 /** Longest time any unit of the line has been sitting in Hong Kong. */
-export function daysInHk(units: Pick<PackageUnit, 'location' | 'arrivedAt'>[]): number | null {
+export function daysInHk(
+  units: Pick<PackageUnit, 'location' | 'arrivedAt'>[],
+): number | null {
   const arrivals = units
     .filter((u) => IN_HK.includes(u.location) && u.arrivedAt)
     .map((u) => today().diff(dayjs(u.arrivedAt!).startOf('day'), 'day'));
@@ -98,7 +133,7 @@ export function daysInHk(units: Pick<PackageUnit, 'location' | 'arrivedAt'>[]): 
 export function isEscalated(
   units: PackageUnit[],
   delivery: DeliveryOrder | undefined,
-  thresholdDays = ESCALATION_DAYS_DEFAULT
+  thresholdDays = ESCALATION_DAYS_DEFAULT,
 ): boolean {
   if (lineStatus(units) !== 'readyToSchedule') return false;
   if (delivery?.scheduledDate) return false;
@@ -126,7 +161,6 @@ export type OrderBucket =
   | 'scheduled'
   | 'partiallyDelivered'
   | 'completed';
-
 export const ORDER_BUCKETS: OrderBucket[] = [
   'notProcured',
   'preparing',
@@ -135,8 +169,10 @@ export const ORDER_BUCKETS: OrderBucket[] = [
   'partiallyDelivered',
   'completed',
 ];
-
-export function orderBucket(units: Pick<PackageUnit, 'location'>[], delivery: Pick<DeliveryOrder, 'scheduledDate'> | null): OrderBucket {
+export function orderBucket(
+  units: Pick<PackageUnit, 'location'>[],
+  delivery: Pick<DeliveryOrder, 'scheduledDate'> | null,
+): OrderBucket {
   const status = lineStatus(units);
   switch (status) {
     case 'notProcured':

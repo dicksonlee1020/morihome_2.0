@@ -1,9 +1,7 @@
-# Prototype
+# Prototype baseline
 
-`morihome-erp-prototype.html` (the clickable prototype, v0.2) is referenced by
-`CLAUDE.md` and by `docs/design/erp-redesign-spec.md` as the behaviour baseline,
-but it is **not in this repo yet**.
+The current runnable baseline is [Morihome-ERP-Prototype-v13-source-sync.html](Morihome-ERP-Prototype-v13-source-sync.html), generated from this repository's React / TypeScript source.
 
-Screens ported before it lands were built from the spec sections instead, and
-need to be reconciled against it once it is committed. See each screen's
-`SPEC REF` / `TODO(prototype)` comments.
+It carries forward the accepted v9 design and v10 workbench, v11 supplier confirmation, v12 allocation and v13 package receiving behaviour. It replaces the old placeholder reference to the missing v0.2 HTML.
+
+Read [v13-handoff.md](v13-handoff.md) for scope, demo steps, QA and known gaps. Regenerate with `npm run build:single`, then copy `dist-single/morihome-erp.html` to the versioned file. Do not edit the bundled HTML directly.

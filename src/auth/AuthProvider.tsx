@@ -113,3 +113,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return <AuthContext value={value}>{children}</AuthContext>;
 }
+
+export { readStoredSession, writeStoredSession };
