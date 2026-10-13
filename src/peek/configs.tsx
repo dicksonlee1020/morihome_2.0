@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import type { StaffUser } from '../auth';
 import { ItemName } from '../components/ItemName';
 import { Pill } from '../components/Pill';
-import type { StaffRole } from '../config/permissions';
+import type { RoleSubject } from '../config/permissions';
 import { can, canSee } from '../config/permissions';
 import { BUCKET_META } from '../data/buckets';
 import type { Channel } from '../data/ops';
@@ -28,7 +28,7 @@ const { Text } = Typography;
 type OpsState = ReturnType<typeof getOps>;
 export interface PeekCtx {
   t: Translate;
-  role: StaffRole;
+  role: RoleSubject;
   user: StaffUser | null;
   ops: OpsState;
   message: MessageInstance;

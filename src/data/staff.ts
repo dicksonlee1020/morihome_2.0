@@ -20,6 +20,8 @@ export const STAFF: StaffRef[] = [
   { id: 'u-hang', name: '阿桁', role: 'driver' },
   { id: 'u-yumi', name: 'Yumi', role: 'content' },
   { id: 'u-kengi', name: 'Kengi', role: 'sysadmin' },
+  { id: 'u-dickson', name: 'Dickson', role: 'sysadmin' },
+  { id: 'u-hr-demo', name: '人事示範', role: 'hr' },
   { id: 'u-system', name: 'Shopify', role: 'system' },
 ];
 

@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
-import type { StaffRole } from '../config/permissions';
-import { can, canSee } from '../config/permissions';
+import type { RoleSubject } from '../config/permissions';
+import { can, canSee, isDriverScoped } from '../config/permissions';
 import { today } from '../domain/clock';
 import type { Activity, StockMoveType } from '../domain/types';
 import type { AuditEntry, Comment, MoveConsequence, PeekModel } from './ops';
@@ -123,11 +123,11 @@ export function mergeFieldChanges(items: TimelineItem[]): TimelineItem[] {
  * §4 權限：含 COST / FINANCE_DETAIL 嘅事件對冇權限嘅角色整條唔出現；
  * driver 只見物流事件同留言。
  */
-export function visibleToRole(role: StaffRole, entry: AuditEntry): boolean {
+export function visibleToRole(role: RoleSubject, entry: AuditEntry): boolean {
   const cls =
     'fieldClass' in entry.payload ? entry.payload.fieldClass : undefined;
   if (cls && !canSee(role, cls)) return false;
-  if (role === 'driver') return false;
+  if (isDriverScoped(role)) return false;
   return true;
 }
 export function timelineFor(src: any, model: any, recordId: any, role: any) {
@@ -214,7 +214,7 @@ export function timelineFor(src: any, model: any, recordId: any, role: any) {
           consequence: t.consequence,
         });
       }
-    if (role !== `driver`) {
+    if (!isDriverScoped(role)) {
       let t = new Map<any, any>(src.activities.map((e: any) => [e.id, e]));
       for (let r of src.activities) {
         if (r.orderId !== recordId) continue;
@@ -329,7 +329,7 @@ export function groupByDay(items: TimelineItem[]): {
 }
 
 /** @ 名單：只列有該紀錄 view 權限嘅同事（§3.3） */
-export const canViewModel = (role: StaffRole, model: PeekModel) =>
+export const canViewModel = (role: RoleSubject, model: PeekModel) =>
   can(
     role,
     model === 'order'

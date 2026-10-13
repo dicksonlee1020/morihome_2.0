@@ -37,6 +37,7 @@ import * as React from 'react';
 import { useEffect, useState } from 'react';
 import type { PageKey, StaffUser } from './auth';
 import { AuthProvider, canOpen, landingPage, useAuth } from './auth';
+import { rolesOf } from './config/permissions';
 import { Logo } from './components/Logo';
 import { Pill } from './components/Pill';
 import type { MessageKey, Translate } from './i18n';
@@ -51,6 +52,7 @@ import { OrdersPage } from './pages/OrdersPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { PurchasingPage } from './pages/PurchasingPage';
 import { RestockPage } from './pages/RestockPage';
+import { SettingsWorkbenchNotice } from './pages/settings/MasterSettingsTabs';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { WaitingPage } from './pages/WaitingPage';
 import { PeekProvider } from './peek/context';
@@ -172,7 +174,7 @@ function Nav({
       inlineCollapsed={collapsed}
       selectedKeys={[page]}
       items={navItems
-        .filter((item) => canOpen(user.role, item.key))
+        .filter((item) => canOpen(user, item.key))
         .map((item) => ({
           ...item,
           label: t(navLabelKey(item.key)),
@@ -234,7 +236,7 @@ function UserMenu({ user, t }: { user: StaffUser; t: Translate }) {
                   }}
                 >
                   <Pill tone="brand">
-                    {t(`role.${user.role}` as MessageKey)}
+                    {rolesOf(user).map(r => t(`role.${r}` as MessageKey)).join('、')}
                   </Pill>
                 </div>
               </Flex>
@@ -283,7 +285,7 @@ function PageBody({
   t: Translate;
   onNavigate: (key: PageKey) => void;
 }) {
-  if (!canOpen(user.role, page)) {
+  if (!canOpen(user, page)) {
     return (
       <Flex
         align="center"
@@ -298,7 +300,7 @@ function PageBody({
   }
   switch (page) {
     case 'followups':
-      return <MyFollowupsPage />;
+      return <><SettingsWorkbenchNotice /><MyFollowupsPage /></>;
     case 'orders':
       return <OrdersPage />;
     case 'products':
@@ -486,7 +488,7 @@ function Root() {
   useEffect(() => {
     if (user) {
       setLocale(user.locale);
-      setPage(landingPage(user.role) ?? 'followups');
+      setPage(landingPage(user) ?? 'followups');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);

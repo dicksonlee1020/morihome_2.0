@@ -259,6 +259,7 @@ export interface MoveConsequence {
     'readyToSchedule' | 'partial' | 'delivered' | 'shipped' | 'transit' | null;
 }
 export interface OpsState {
+  ownerTransfers?: Record<string, { to: string; actor: string; at: string }>;
   safetyStock?: Record<string, number>;
   receipts?: ReceiptRecord[];
   unexpectedReceipts?: UnexpectedReceipt[];
@@ -1004,7 +1005,17 @@ function buildFixtures(): OpsState {
 let opsState: OpsState = moriSeedReceiving(buildFixtures());
 const listeners = new Set<() => void>();
 function commit(next: any) {
-  opsState = moriReconcileTasks(next);
+  const transfers = next.ownerTransfers ?? {};
+  const packages = next.packages.map((p: Pkg) => {
+    const ex = p.receivingException;
+    const transfer = ex?.status === 'open' ? transfers[ex.owner] : null;
+    return transfer ? { ...p, receivingException: { ...ex, owner: transfer.to, updatedAt: transfer.at } } : p;
+  });
+  const reconciled = moriReconcileTasks({ ...next, packages });
+  opsState = { ...reconciled, activities: reconciled.activities.map((a: Activity) => {
+    const transfer = !a.doneAt ? transfers[a.owner] : null;
+    return transfer ? { ...a, owner: transfer.to, history: [...(a.history ?? []), { at: transfer.at, action: 'reassigned', fromOwner: a.owner, toOwner: transfer.to, actor: transfer.actor, reason: 'account_inactive' }] } : a;
+  }) };
   listeners.forEach((e: any) => e());
 }
 export function useOps(): OpsState {

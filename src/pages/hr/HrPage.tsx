@@ -22,7 +22,7 @@ export function HrPage() {
   const t = useT();
   const { user } = useAuth();
   const hr = useHr();
-  const role = user?.role ?? 'sales';
+  const role = user ?? 'sales';
   // 佣金：見全公司（payroll.view）或者自己有佣金率先有呢個 tab
   const hasCommission = can(role, 'payroll', 'view') || (employeeOfUser(user?.id ?? '', hr)?.commissionRate ?? null) !== null;
 
@@ -52,7 +52,7 @@ export function HrPage() {
           <Empty description={t('nav.noAccess')} />
         </Flex>
       ) : (
-        <Tabs activeKey={active} onChange={setActive} items={items} destroyOnHidden />
+        <Tabs activeKey={items.some(i => i.key === active) ? active : items[0]?.key} onChange={setActive} items={items} destroyOnHidden />
       )}
     </Flex>
   );

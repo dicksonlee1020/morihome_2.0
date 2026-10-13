@@ -892,8 +892,8 @@ function MoriReceivingModal({ scope, onClose }: any) {
   const [page, setPage] = React.useState<any>(1);
   const [discard, setDiscard] = React.useState<any>(false);
   const canEdit =
-    can(user?.role || `sales`, `warehouse`, `execute`) ||
-    can(user?.role || `sales`, `purchasing`, `execute`);
+    can(user || `sales`, `warehouse`, `execute`) ||
+    can(user || `sales`, `purchasing`, `execute`);
   const all = moriReceivingRows(state, stage).filter(
     (r: any) => !scope?.ids || scope.ids.includes(r.p.id),
   );

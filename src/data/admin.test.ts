@@ -78,7 +78,7 @@ describe('approval rules (§9.6)', () => {
     expect(needsApproval('purchase', 1)).toBe(true);
     expect(needsApproval('stocktake', 2)).toBe(false);
     expect(needsApproval('stocktake', 3)).toBe(true);
-    expect(needsApproval('pettyCash', 9999)).toBe(false); // inactive
+    expect(needsApproval('pettyCash', 1)).toBe(true); // v14: all expenses require Ocean
   });
 
   it('the named approver decides, never the requester; a requester who is the approver falls back to the role', () => {
@@ -100,7 +100,7 @@ describe('temporary field grants (§9.8)', () => {
   it('only an owner grants; the grant lifts the field class until it expires or is revoked', () => {
     const kengi = user('u-kengi');
     expect(canSeeWithGrants(kengi, 'CUSTOMER_PII')).toBe(false); // FG-02 expired
-    expect(canSeeWithGrants(kengi, 'COST')).toBe(true); // FG-01 active
+    expect(canSeeWithGrants(kengi, 'COST')).toBe(false); // v14: historical grant expired
     expect(issueGrant({ userId: 'u-kengi', fieldClass: 'CUSTOMER_PII', hours: 2, reason: 'debug' }, kengi)).toEqual({ ok: false, error: 'notOwner' });
     const res = issueGrant({ userId: 'u-kengi', fieldClass: 'CUSTOMER_PII', hours: 2, reason: 'debug' }, user('u-ocean'));
     expect(res.ok).toBe(true);

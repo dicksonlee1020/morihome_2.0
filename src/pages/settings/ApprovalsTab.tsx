@@ -29,7 +29,7 @@ export function ApprovalsTab() {
   const admin = useAdmin();
   const accounts = useAccounts();
   const me = user as StaffUser;
-  const editable = can(me.role, 'settings', 'edit');
+  const editable = can(me, 'settings', 'edit');
   const loading = useMockLoading();
 
   const rows = [...admin.rules].sort((a, b) => (a.group === b.group ? a.id.localeCompare(b.id) : a.group === 'business' ? -1 : 1));

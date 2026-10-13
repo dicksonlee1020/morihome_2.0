@@ -8,9 +8,9 @@
  * come from ApprovalRule (§9.6), never from this table.
  */
 
-export type StaffRole = 'owner' | 'ops' | 'finance' | 'sales' | 'driver' | 'content' | 'sysadmin';
+export type StaffRole = 'owner' | 'ops' | 'finance' | 'sales' | 'driver' | 'content' | 'hr' | 'sysadmin';
 
-export const ROLES: StaffRole[] = ['owner', 'ops', 'finance', 'sales', 'driver', 'content', 'sysadmin'];
+export const ROLES: StaffRole[] = ['owner', 'ops', 'finance', 'sales', 'driver', 'content', 'hr', 'sysadmin'];
 
 export type Action = 'view' | 'edit' | 'execute' | 'export';
 
@@ -50,30 +50,33 @@ export const ROLE_MATRIX: Record<Module, Record<StaffRole, Action[]>> = {
     owner: FULL, ops: VE, finance: VE,
     sales: ['view', 'edit', 'export'], // ¹ remark / requested date / channel only (field-level, server side)
     driver: V, // ² own + today (SCOPE_RULES.driver.own_today)
-    content: NONE, sysadmin: NONE,
+    content: NONE, hr: NONE, sysadmin: NONE,
   },
-  followups: { owner: V, ops: FULL, finance: NONE, sales: V, driver: NONE, content: NONE, sysadmin: NONE },
-  pipeline: { owner: V, ops: V, finance: V, sales: V, driver: NONE, content: NONE, sysadmin: NONE },
-  purchasing: { owner: VE, ops: FULL, finance: VE, sales: NONE, driver: NONE, content: NONE, sysadmin: NONE },
-  warehouse: { owner: VE, ops: FULL, finance: V, sales: V /* ³ lead-time lookup */, driver: NONE, content: NONE, sysadmin: NONE },
-  restock: { owner: FULL, ops: FULL, finance: V, sales: V /* ⁴ sellable only */, driver: NONE, content: NONE, sysadmin: NONE },
-  delivery: { owner: V, ops: FULL, finance: NONE, sales: V, driver: ['view', 'execute'] /* ² */, content: NONE, sysadmin: NONE },
-  reconciliation: { owner: V, ops: NONE, finance: FULL, sales: NONE, driver: NONE, content: NONE, sysadmin: NONE },
-  finance: { owner: FULL, ops: NONE, finance: FULL, sales: NONE, driver: NONE, content: NONE, sysadmin: NONE },
-  products: { owner: FULL, ops: V, finance: V, sales: V, driver: NONE, content: FULL /* ⁵ no COST */, sysadmin: NONE },
-  customers: { owner: FULL, ops: V /* ⁶ contact for booking */, finance: V, sales: FULL, driver: V /* ² */, content: NONE, sysadmin: NONE },
-  settings: { owner: FULL, ops: V, finance: ['view', 'edit'] /* ⁷ rules, payment methods */, sales: NONE, driver: NONE, content: NONE, sysadmin: ['view', 'edit'] /* ⁸ technical only */ },
-  accounts: { owner: FULL, ops: NONE, finance: NONE, sales: NONE, driver: NONE, content: NONE, sysadmin: FULL /* ⁹ never own role */ },
-  audit: { owner: V, ops: NONE, finance: V, sales: NONE, driver: NONE, content: NONE, sysadmin: V },
+  followups: { owner: V, ops: FULL, finance: V, sales: V, driver: NONE, content: NONE, hr: NONE, sysadmin: NONE },
+  pipeline: { owner: V, ops: V, finance: V, sales: V, driver: NONE, content: NONE, hr: NONE, sysadmin: NONE },
+  purchasing: { owner: VE, ops: FULL, finance: VE, sales: NONE, driver: NONE, content: NONE, hr: NONE, sysadmin: NONE },
+  warehouse: { owner: VE, ops: FULL, finance: V, sales: V /* ³ lead-time lookup */, driver: NONE, content: NONE, hr: NONE, sysadmin: NONE },
+  restock: { owner: FULL, ops: FULL, finance: V, sales: V /* ⁴ sellable only */, driver: NONE, content: NONE, hr: NONE, sysadmin: NONE },
+  delivery: { owner: V, ops: FULL, finance: NONE, sales: V, driver: ['view', 'execute'] /* ² */, content: NONE, hr: NONE, sysadmin: NONE },
+  reconciliation: { owner: V, ops: NONE, finance: FULL, sales: NONE, driver: NONE, content: NONE, hr: NONE, sysadmin: NONE },
+  finance: { owner: FULL, ops: NONE, finance: FULL, sales: NONE, driver: NONE, content: NONE, hr: NONE, sysadmin: NONE },
+  products: { owner: FULL, ops: V, finance: V, sales: V, driver: NONE, content: FULL /* ⁵ no COST */, hr: NONE, sysadmin: NONE },
+  customers: { owner: FULL, ops: V /* ⁶ contact for booking */, finance: V, sales: FULL, driver: V /* ² */, content: NONE, hr: NONE, sysadmin: NONE },
+  settings: { owner: FULL, ops: V, finance: ['view', 'edit'] /* ⁷ rules, payment methods */, sales: NONE, driver: NONE, content: NONE, hr: NONE, sysadmin: ['view', 'edit'] /* ⁸ technical only */ },
+  accounts: { owner: FULL, ops: NONE, finance: NONE, sales: NONE, driver: NONE, content: NONE, hr: NONE, sysadmin: FULL /* ⁹ never own role */ },
+  audit: { owner: V, ops: NONE, finance: V, sales: NONE, driver: NONE, content: NONE, hr: NONE, sysadmin: V },
   // 員工／排班／請假／佣金：everyone sees their own rows (SCOPE_RULES['hr.self']);
   // ops edits the roster; owner sees and edits all. sysadmin stripped (§9.8).
-  hr: { owner: FULL, ops: ['view', 'edit'], finance: V, sales: V, driver: V, content: V, sysadmin: NONE },
+  hr: { owner: FULL, ops: ['view', 'edit'], finance: V, sales: V, driver: V, content: V, hr: FULL, sysadmin: NONE },
   // 薪資：owner (Jenny handles 內務) and finance only; approval by ApprovalRule.
-  payroll: { owner: FULL, ops: NONE, finance: ['view', 'edit', 'export'], sales: NONE, driver: NONE, content: NONE, sysadmin: NONE },
+  payroll: { owner: FULL, ops: NONE, finance: ['view', 'edit', 'export'], sales: NONE, driver: NONE, content: NONE, hr: ['view', 'edit', 'export'], sysadmin: NONE },
 };
 
-export const can = (role: StaffRole, module: Module, action: Action): boolean =>
-  ROLE_MATRIX[module]?.[role]?.includes(action) ?? false;
+export type RoleSubject = StaffRole | { role: StaffRole; roles?: StaffRole[]; status?: string };
+export const rolesOf = (subject: RoleSubject): StaffRole[] => typeof subject === 'string' ? [subject] : subject.roles ?? [subject.role];
+export const hasRole = (subject: RoleSubject, role: StaffRole) => rolesOf(subject).includes(role);
+export const can = (subject: RoleSubject, module: Module, action: Action): boolean =>
+  (typeof subject === 'string' || subject.status !== 'inactive') && rolesOf(subject).some(role => ROLE_MATRIX[module]?.[role]?.includes(action) ?? false);
 
 /**
  * §9.5 FIELD_CLASSES — stripped in the serialisation layer server side;
@@ -89,11 +92,11 @@ export const FIELD_CLASS_ROLES: Record<FieldClass, StaffRole[]> = {
   // spec §9.5 leaves this blank (frozen module). ASSUMPTION A-06: salary,
   // leave balance and commission of OTHER people are owner/finance only; a
   // person's own row is always theirs (SCOPE_RULES['hr.self']).
-  HR: ['owner', 'finance'],
+  HR: ['owner', 'finance', 'hr'],
 };
 
-export const canSee = (role: StaffRole, cls: FieldClass): boolean =>
-  FIELD_CLASS_ROLES[cls].includes(role);
+export const canSee = (subject: RoleSubject, cls: FieldClass): boolean =>
+  (typeof subject === 'string' || subject.status !== 'inactive') && rolesOf(subject).some(role => FIELD_CLASS_ROLES[cls].includes(role));
 
 /** §9.4 SCOPE_RULES, named so the code can point at them. */
 export const SCOPE_RULES = {
@@ -102,3 +105,5 @@ export const SCOPE_RULES = {
   company: 'companyId reserved on every entity; filtering is OFF in Phase 1 (Q24)',
   'hr.self': 'roster / leave / commission rows: employee = self unless the role has hr.edit or payroll.view',
 } as const;
+
+export const isDriverScoped = (subject: RoleSubject) => hasRole(subject, 'driver') && !rolesOf(subject).some(r => r !== 'driver' && can(r, 'orders', 'view'));

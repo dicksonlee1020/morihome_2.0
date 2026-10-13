@@ -44,7 +44,7 @@ export function Timeline({ model, recordId }: any) {
   let n = MoriUseT();
   let { user } = MoriUseAuth();
   let ops = useOps();
-  let role = (user == null ? undefined : user.role) ?? `sales`;
+  let role = user ?? `sales`;
   let [filter, setFilter] = React.useState<any>(`all`);
   let [limit, setLimit] = React.useState<any>(PAGE);
   let [draft, setDraft] = React.useState<any>(``);

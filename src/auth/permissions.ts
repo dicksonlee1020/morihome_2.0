@@ -1,5 +1,5 @@
 import { can } from '../config/permissions';
-import type { Module, StaffRole } from '../config/permissions';
+import type { Module, RoleSubject } from '../config/permissions';
 
 /**
  * Screens → registry modules (docs/design/rbac-spec.md §9.3). The navigation
@@ -33,11 +33,11 @@ export const PAGE_MODULE: Record<PageKey, Module> = {
   settings: 'settings',
 };
 
-export const canOpen = (role: StaffRole, page: PageKey): boolean =>
+export const canOpen = (role: RoleSubject, page: PageKey): boolean =>
   can(role, PAGE_MODULE[page], 'view');
 
 /** The screen a role lands on after signing in: its first permitted one. */
-export function landingPage(role: StaffRole): PageKey | null {
+export function landingPage(role: RoleSubject): PageKey | null {
   const order = Object.keys(PAGE_MODULE) as PageKey[];
   return order.find((page) => canOpen(role, page)) ?? null;
 }

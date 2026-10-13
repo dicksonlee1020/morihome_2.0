@@ -30,9 +30,9 @@ export function EmployeesTab() {
   const hr = useHr();
   const admin = useAdmin();
   const me = user as StaffUser;
-  const all = seesAllStaff(me.role);
+  const all = seesAllStaff(me);
   const seesHr = canSeeWithGrants(me, 'HR', Date.parse(nowIso()), admin);
-  const payEdit = can(me.role, 'payroll', 'edit');
+  const payEdit = can(me, 'payroll', 'edit');
 
   const [depts, setDepts] = useState<Department[]>([]);
   const [keyword, setKeyword] = useState('');

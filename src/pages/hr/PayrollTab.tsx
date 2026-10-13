@@ -42,7 +42,7 @@ export function PayrollTab() {
 
   const rule = ruleFor('payroll', admin);
   const approverName = rule?.approverUserId ? staffById(rule.approverUserId).name : t(`role.${rule?.approverRole ?? 'owner'}` as MessageKey);
-  const canEdit = can(me.role, 'payroll', 'edit');
+  const canEdit = can(me, 'payroll', 'edit');
   const mayConfirm = run && run.status === 'draft' && canApprove('payroll', me, run.preparedBy, admin);
 
   const refresh = () => {
@@ -93,7 +93,7 @@ export function PayrollTab() {
         extra={
           <Space>
             {canEdit && run?.status === 'draft' && <Button icon={<ReloadOutlined />} onClick={refresh}>{t('hr.payroll.refresh')}</Button>}
-            {can(me.role, 'payroll', 'export') && <Button icon={<DownloadOutlined />} onClick={() => message.success(t('common.exported'))}>{t('common.export')}</Button>}
+            {can(me, 'payroll', 'export') && <Button icon={<DownloadOutlined />} onClick={() => message.success(t('common.exported'))}>{t('common.export')}</Button>}
             {mayConfirm && <Button type="primary" icon={<CheckOutlined />} onClick={confirm}>{t('hr.payroll.confirm')}</Button>}
           </Space>
         }

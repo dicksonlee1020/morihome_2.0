@@ -27,7 +27,7 @@ import { CardList } from '../components/CardList';
 import { DataTableCard } from '../components/DataTableCard';
 import { FilterChip } from '../components/FilterChip';
 import { Pill } from '../components/Pill';
-import { can, canSee } from '../config/permissions';
+import { can, canSee, isDriverScoped } from '../config/permissions';
 import { BUCKET_META } from '../data/buckets';
 import type { Channel, PaymentState, SalesOrder } from '../data/ops';
 import { packagesOfOrder, productOf, useOps } from '../data/ops';
@@ -92,9 +92,9 @@ export function OrdersPage() {
   let { user } = MoriUseAuth();
   let ops = useOps();
   let role = (user == null ? undefined : user.role) ?? `sales`;
-  let showPii = canSee(role, `CUSTOMER_PII`);
+  let showPii = canSee(user ?? role, `CUSTOMER_PII`);
   let mayExecute =
-    can(role, `delivery`, `execute`) || can(role, `orders`, `execute`);
+    can(user ?? role, `delivery`, `execute`) || can(user ?? role, `orders`, `execute`);
   let [buckets, setBuckets] = React.useState<any>([]);
   let [payments, setPayments] = React.useState<any>([]);
   let [channels, setChannels] = React.useState<any>([]);
@@ -134,7 +134,7 @@ export function OrdersPage() {
     return e;
   }, [all]);
   let scoped =
-    role === `driver`
+    isDriverScoped(user ?? role)
       ? all.filter(
           (e: any) =>
             e.order.delivery.scheduledDate === `2026-09-22` &&
@@ -526,7 +526,7 @@ export function OrdersPage() {
           </Text>
         </Flex>
         <Space>
-          {can(role, `orders`, `export`) && (
+          {can(user ?? role, `orders`, `export`) && (
             <Button
               icon={<DownloadOutlined />}
               onClick={() => message.success(n(`common.exported`))}
@@ -534,7 +534,7 @@ export function OrdersPage() {
               {n(`common.export`)}
             </Button>
           )}
-          {can(role, `orders`, `edit`) && (
+          {can(user ?? role, `orders`, `edit`) && (
             <Tooltip title={n(`orders.newHint`)}>
               <Button
                 type={`primary`}

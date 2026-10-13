@@ -43,6 +43,8 @@ interface StoredUser extends StaffUser {
 const users: StoredUser[] = [
   { id: 'u-ocean', email: 'ocean@morihome.example', displayName: 'Ocean', role: 'owner', status: 'active', locale: 'zh-Hant', mustChangePassword: false, expiresAt: null, lastLoginAt: '2026-09-21T09:12:00+08:00', password: DEMO_PASSWORD },
   { id: 'u-jenny', email: 'jenny@morihome.example', displayName: 'Jenny', role: 'owner', status: 'active', locale: 'zh-Hant', expiresAt: null, mustChangePassword: false, lastLoginAt: '2026-09-20T15:10:00+08:00', password: DEMO_PASSWORD },
+  { id: 'u-dickson', email: 'dickson@morihome.example', displayName: 'Dickson', role: 'sysadmin', status: 'active', locale: 'zh-Hant', expiresAt: null, mustChangePassword: false, lastLoginAt: null, password: DEMO_PASSWORD },
+  { id: 'u-hr-demo', email: 'hr@morihome.example', displayName: '人事示範', role: 'hr', status: 'active', locale: 'zh-Hant', expiresAt: null, mustChangePassword: false, lastLoginAt: null, password: DEMO_PASSWORD },
   { id: 'u-kengi', email: 'kengi@morihome.example', displayName: 'Kengi', role: 'sysadmin', status: 'active', locale: 'zh-Hant', expiresAt: null, mustChangePassword: false, lastLoginAt: '2026-09-22T08:40:00+08:00', password: DEMO_PASSWORD },
   { id: 'u-alex', email: 'alex@morihome.example', displayName: 'Alex', role: 'ops', status: 'active', locale: 'zh-Hant', expiresAt: null, mustChangePassword: false, lastLoginAt: '2026-09-22T09:05:00+08:00', password: DEMO_PASSWORD },
   { id: 'u-manman', email: 'manman@morihome.example', displayName: '雯雯', role: 'finance', status: 'active', locale: 'zh-Hans', expiresAt: null, mustChangePassword: false, lastLoginAt: '2026-09-22T09:30:00+08:00', password: DEMO_PASSWORD },
@@ -92,6 +94,7 @@ function makeSession(user: StoredUser, remember: boolean): Session {
     ? now.add(SESSION_DAYS_REMEMBER, 'day')
     : now.add(SESSION_HOURS_DEFAULT, 'hour');
   user.lastLoginAt = now.toISOString();
+  emitAccounts();
   return {
     token: randomToken(),
     user: publicUser(user),
@@ -186,6 +189,7 @@ export async function resetPassword(
   if (!user) return { ok: false, error: 'expired' };
   user.password = newPassword;
   user.mustChangePassword = false;
+  emitAccounts();
   resetTokens.delete(token);
   attempts.delete(user.email.toLowerCase());
   return { ok: true };
@@ -200,6 +204,7 @@ export async function changePassword(
   if (!user) return { ok: false, error: 'network' };
   user.password = newPassword;
   user.mustChangePassword = false;
+  emitAccounts();
   return { ok: true };
 }
 
@@ -225,7 +230,7 @@ export function subscribeAccounts(l: () => void) {
 
 export function updateAccount(
   id: string,
-  patch: Partial<Pick<StaffUser, 'role' | 'status' | 'locale' | 'displayName' | 'expiresAt'>>
+  patch: Partial<Pick<StaffUser, 'role' | 'roles' | 'status' | 'locale' | 'displayName' | 'expiresAt'>>
 ): StaffUser | null {
   const user = users.find((u) => u.id === id);
   if (!user) return null;
@@ -235,7 +240,7 @@ export function updateAccount(
 }
 
 /** Opens an account with a temporary password; the person sets their own at first sign-in. */
-export function createAccount(input: Pick<StaffUser, 'email' | 'displayName' | 'role' | 'locale'> & { expiresAt?: string | null }): StaffUser | { error: 'duplicate' } {
+export function createAccount(input: Pick<StaffUser, 'email' | 'displayName' | 'role' | 'locale'> & { expiresAt?: string | null; roles?: StaffUser['role'][] }): StaffUser | { error: 'duplicate' } {
   if (findByEmail(input.email)) return { error: 'duplicate' };
   const id = `u-${input.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '')}`;
   const user: StoredUser = {
@@ -243,6 +248,7 @@ export function createAccount(input: Pick<StaffUser, 'email' | 'displayName' | '
     email: input.email.trim(),
     displayName: input.displayName.trim(),
     role: input.role,
+    roles: input.roles ?? [input.role],
     status: 'active',
     locale: input.locale,
     mustChangePassword: true,

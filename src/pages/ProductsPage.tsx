@@ -78,7 +78,7 @@ export function ProductsPage() {
   let { w: n } = useDensity();
   let { user } = MoriUseAuth();
   let showCost = canSee(
-    (user == null ? undefined : user.role) ?? `content`,
+    user ?? `content`,
     `COST`,
   );
   let [statuses, setStatuses] = React.useState<any>([]);

@@ -41,7 +41,7 @@ export function LeaveTab() {
   const hr = useHr();
   const admin = useAdmin();
   const me = user as StaffUser;
-  const all = seesAllStaff(me.role);
+  const all = seesAllStaff(me);
   const [statuses, setStatuses] = useState<LeaveStatus[]>([]);
   const [types, setTypes] = useState<LeaveType[]>([]);
   const [creating, setCreating] = useState(false);
@@ -63,7 +63,7 @@ export function LeaveTab() {
   const approverName = rule?.approverUserId ? staffById(rule.approverUserId).name : t(`role.${rule?.approverRole ?? 'owner'}` as MessageKey);
   const requesterId = (l: LeaveRequest) => employeeById(l.employeeId, hr)?.userId ?? '';
   const mayDecide = (l: LeaveRequest) => l.status === 'pending' && canApprove('leave', me, requesterId(l), admin);
-  const mayCancel = (l: LeaveRequest) => l.status === 'pending' && (requesterId(l) === me.id || can(me.role, 'hr', 'edit'));
+  const mayCancel = (l: LeaveRequest) => l.status === 'pending' && (requesterId(l) === me.id || can(me, 'hr', 'edit'));
 
   const ERR: Record<HrError, MessageKey> = {
     forbidden: 'hr.leave.msg.forbidden',
@@ -177,7 +177,7 @@ function LeaveModal({ open, onClose, me }: { open: boolean; onClose: () => void;
   const { message } = App.useApp();
   const hr = useHr();
   const isMobile = useIsMobile();
-  const all = can(me.role, 'hr', 'edit');
+  const all = can(me, 'hr', 'edit');
   const mine = employeeOfUser(me.id, hr);
   const [form] = Form.useForm<{ employeeId: string; type: LeaveType; range: [Dayjs, Dayjs] | null; reason: string }>();
   const range = Form.useWatch('range', form);

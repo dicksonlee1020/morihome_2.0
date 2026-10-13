@@ -21,6 +21,8 @@ export interface StaffUser {
   email: string;
   displayName: string;
   role: StaffRole;
+  /** Union of assigned roles; role retains the primary label for v13 compatibility. */
+  roles?: StaffRole[];
   status: AccountStatus;
   /** Per-user language setting (CLAUDE.md); applied the moment they sign in. */
   locale: Locale;

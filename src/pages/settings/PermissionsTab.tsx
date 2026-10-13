@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { App, Button, Card, Empty, Flex, Form, Input, InputNumber, Modal, Popconfirm, Select, Table, Tooltip, Typography } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import { FIELD_CLASS_ROLES, ROLE_MATRIX, ROLES, SCOPE_RULES } from '../../config/permissions';
+import { FIELD_CLASS_ROLES, ROLE_MATRIX, ROLES, SCOPE_RULES, hasRole } from '../../config/permissions';
 import type { Action, FieldClass, Module, StaffRole } from '../../config/permissions';
 import { grantActive, issueGrant, nowIso, revokeGrant, useAccounts, useAdmin } from '../../data/admin';
 import type { FieldGrant } from '../../data/admin';
@@ -37,7 +37,7 @@ export function PermissionsTab() {
   const isMobile = useIsMobile();
   const admin = useAdmin();
   const me = user as StaffUser;
-  const isOwner = me.role === 'owner';
+  const isOwner = hasRole(me, 'owner');
   const loading = useMockLoading();
   const nowMs = Date.parse(nowIso());
   const [granting, setGranting] = useState(false);

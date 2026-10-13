@@ -33,8 +33,8 @@ export function RosterTab() {
   const isMobile = useIsMobile();
   const hr = useHr();
   const me = user as StaffUser;
-  const all = seesAllStaff(me.role);
-  const editable = can(me.role, 'hr', 'edit');
+  const all = seesAllStaff(me);
+  const editable = can(me, 'hr', 'edit');
   const [start, setStart] = useState(weekStart(DEMO_TODAY));
   const days = weekDays(start);
 

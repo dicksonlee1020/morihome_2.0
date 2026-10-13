@@ -1,0 +1,274 @@
+{
+  "version": "simplified-v1-2026-10-08",
+  "categories": [
+    {
+      "id": "D01",
+      "name": "商品銷售",
+      "examples": "傢俬、床褥；產品類別由訂單帶入",
+      "caution": "有效訂單淨額；取消及折讓只處理一次",
+      "report": "管理收入歸原訂單月份；不以收款月份取代",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D02",
+      "name": "配送／安裝收入",
+      "examples": "向客人另外收取的送貨、安裝費",
+      "caution": "客人付的服務費與公司付的物流成本分開",
+      "report": "隨原訂單月份，收入明細獨立展示",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D03",
+      "name": "客戶收款及退款",
+      "examples": "訂金、尾款、退款",
+      "caution": "連原訂單；收款不是再新增一次銷售；退款與價格調整分開",
+      "report": "更新已收、尾數及退款；有效價格調整回原訂單月",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D04",
+      "name": "商品採購",
+      "examples": "供應商訂金、貨款、商品成本",
+      "caution": "底層分預付款、存貨及已售成本；付款不重複計成本",
+      "report": "可歸屬成本連原訂單；未知成本不填零",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D05",
+      "name": "入貨物流",
+      "examples": "內地提貨、跨境運輸、入倉搬運",
+      "caution": "按路段及用途判斷；批次費用未有依據先不分攤",
+      "report": "可歸屬部分入管理商品成本；保留未分攤批次",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D06",
+      "name": "本港配送及安裝",
+      "examples": "送客、上樓、安裝、助手費",
+      "caution": "普通配送與售後重送分開",
+      "report": "歸原訂單月份，從管理商品毛利扣除",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D07",
+      "name": "售後費用",
+      "examples": "維修、補件、換貨運輸、二次上門",
+      "caution": "保留原因、日期及原訂單；不能跟普通配送重複計算",
+      "report": "歸原訂單月份；後續補單更新最新版本",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D08",
+      "name": "收款手續費",
+      "examples": "Shopify Payments、YeahPay／KPay、PayMe 等交易費",
+      "caution": "渠道獨立欄位；平台月費不放這裡；KPay／YeahPay 不自行合併",
+      "report": "有明細則歸訂單；批次費待核准分攤",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D09",
+      "name": "人工及佣金",
+      "examples": "薪金、兼職、佣金、僱主 MPF、福利及培訓",
+      "caution": "各細項分開；淨實付、員工扣款與報銷不全當人工成本",
+      "report": "佣金歸原訂單；基本薪金等按服務月；避免再扣佣金",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D10",
+      "name": "租金及倉務",
+      "examples": "門市／辦公室／倉租、管理費、水電、清潔",
+      "caution": "地點另選；按金與跨期預付款分開",
+      "report": "共用費用按服務月份，未有規則不硬分訂單",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D11",
+      "name": "廣告及市場推廣",
+      "examples": "Google／Meta 投放、代理、內容製作、推廣物料",
+      "caution": "媒体投放、代理服務與軟件訂閱分開",
+      "report": "按服務月份列公司費用；活動歸因另外追蹤",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D12",
+      "name": "IT 及系統服務",
+      "examples": "Shopify 訂閱、Apps、Semrush、IT 支援、開發及顧問",
+      "caution": "日常訂閱、維護、開發分開；是否資產化另作判斷",
+      "report": "期間服務列共用費用；開發項目單獨追蹤",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D13",
+      "name": "行政及專業服務",
+      "examples": "通訊、文具、交通、保險、會計、審計、法律、公司秘書",
+      "caution": "按原用途細分；報銷只是支付流程",
+      "report": "按服務月份列公司費用",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D14",
+      "name": "銀行、匯款及匯兌",
+      "examples": "銀行費、匯款服務費、匯兌損益",
+      "caution": "本金另外處理；保留原幣、匯率及費用證據",
+      "report": "可歸屬訂單的調整另列；其餘公司期間項目",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D15",
+      "name": "轉帳及往來款",
+      "examples": "自有戶口轉帳、平台結算、還信用卡、代付款結算、按金、股東往來",
+      "caution": "本金通常是資產／負債／權益變動；底層費用不重複計算",
+      "report": "不直接加入管理收入或扣訂單成本",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "D16",
+      "name": "待分類／待補資料",
+      "examples": "用途不明、缺單據、金額或來源有矛盾",
+      "caution": "寫明不確定原因及欠缺證據；不當成「其他費用」",
+      "report": "列人審清單；不冒充零成本或已確認分類",
+      "reserve": false,
+      "active": true
+    },
+    {
+      "id": "R01",
+      "name": "設備、裝修、軟件資產",
+      "examples": "有相關購置／開發項目",
+      "caution": "先記用途及原始文件，再按政策判斷；不要僅憑供應商名稱決定",
+      "report": "",
+      "reserve": true,
+      "active": false
+    },
+    {
+      "id": "R02",
+      "name": "折舊及攤銷",
+      "examples": "月結／年結",
+      "caution": "由會計按資產台帳處理；不與購置付款重複當費用",
+      "report": "",
+      "reserve": true,
+      "active": false
+    },
+    {
+      "id": "R03",
+      "name": "股本及保留盈利",
+      "examples": "公司資本變動／正式結帳",
+      "caution": "由正式文件及結帳記錄產生；股東借款與股本分開",
+      "report": "",
+      "reserve": true,
+      "active": false
+    },
+    {
+      "id": "R04",
+      "name": "預繳稅、應付稅及稅項費用",
+      "examples": "稅務處理",
+      "caution": "預繳、應付與費用分開；日常隱藏",
+      "report": "",
+      "reserve": true,
+      "active": false
+    },
+    {
+      "id": "R05",
+      "name": "借款本金及利息",
+      "examples": "有實際融資時",
+      "caution": "本金與利息分拆；還本金不當營運費用",
+      "report": "",
+      "reserve": true,
+      "active": false
+    },
+    {
+      "id": "R06",
+      "name": "存貨減值、盤虧、壞帳、拒付損失",
+      "examples": "有具體例外事件時",
+      "caution": "需事件及批准證據；不吸收普通不明差額",
+      "report": "",
+      "reserve": true,
+      "active": false
+    },
+    {
+      "id": "R07",
+      "name": "交易爭議處理費",
+      "examples": "支付平台收取爭議／調查費時",
+      "caution": "先作「收款手續費」子類；與拒付本金損失分開",
+      "report": "",
+      "reserve": true,
+      "active": false
+    }
+  ],
+  "reportRules": [
+    {
+      "order": 1,
+      "name": "訂單月份管理收入",
+      "formula": "有效商品銷售＋配送／安裝服務收入，扣有效取消／折讓",
+      "note": "歸原訂單月；同一折讓不重複扣；不等於銀行到帳"
+    },
+    {
+      "order": 2,
+      "name": "減：商品成本及入貨物流",
+      "formula": "可歸屬商品成本＋入貨運費等",
+      "note": "同一來源只計一次；付款本金不再重複扣"
+    },
+    {
+      "order": 3,
+      "name": "管理商品毛利",
+      "formula": "管理收入－商品成本及入貨物流",
+      "note": "分開已確認、已承諾／預估及未知成本"
+    },
+    {
+      "order": 4,
+      "name": "減：履約及成交相關支出",
+      "formula": "本港配送／安裝＋售後＋收款費＋佣金",
+      "note": "有證據歸原訂單；未分攤費用獨立列示"
+    },
+    {
+      "order": 5,
+      "name": "訂單群貢獻",
+      "formula": "管理商品毛利－履約及成交相關支出",
+      "note": "未齊成本標預估／待確認，不當最終盈利"
+    },
+    {
+      "order": 6,
+      "name": "另列：公司共用費用",
+      "formula": "租金、基本薪金、廣告、IT、行政等",
+      "note": "先按服務月份；不硬分訂單；已扣佣金不可再扣"
+    },
+    {
+      "order": 7,
+      "name": "現金視角",
+      "formula": "銀行實際收款及付款",
+      "note": "按實際入帳月份；平台收款與 payout 避免重複"
+    },
+    {
+      "order": 8,
+      "name": "會計視角",
+      "formula": "按適用政策確認收入、成本及調整",
+      "note": "會計期間另存；不是把管理收入直接倒填九月"
+    },
+    {
+      "order": 9,
+      "name": "最新重述版",
+      "formula": "後續改單、退款、成本補單更新原訂單群",
+      "note": "標明資料截止及版本；不能冒充當時月結已知數字"
+    },
+    {
+      "order": 10,
+      "name": "已發出月結快照",
+      "formula": "保存當時數值與來源版本",
+      "note": "不覆寫；與最新版差額保留原因及明細"
+    }
+  ]
+}

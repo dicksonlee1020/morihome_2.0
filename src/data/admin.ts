@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from 'react';
 import { DEMO_TODAY } from '../domain/clock';
-import { can, canSee, ROLES } from '../config/permissions';
+import { can, canSee, ROLES, rolesOf, hasRole } from '../config/permissions';
 import type { FieldClass, StaffRole } from '../config/permissions';
 import * as auth from '../auth/mockAuthService';
 import type { AccountStatus, StaffUser } from '../auth/types';
 import type { Locale } from '../i18n';
-import { nowIso } from './ops';
+import { nowIso, getOps, commit as commitOps } from './ops';
+import { transferSettingApprovals } from './settingsV14';
 
 /**
  * 設定 → 帳號管理／審批規則／權限／審計紀錄 嘅 mock store。
@@ -53,6 +54,8 @@ export interface RoleChangeRequest {
   userId: string;
   from: StaffRole;
   to: StaffRole;
+  fromRoles?: StaffRole[];
+  toRoles?: StaffRole[];
   requestedBy: string;
   requestedAt: string;
   status: 'pending' | 'confirmed' | 'rejected';
@@ -107,7 +110,6 @@ const daysAgo = (n: number) => {
   const d = new Date(Date.parse(DEMO_TODAY) - n * 86_400_000);
   return d.toISOString().slice(0, 10);
 };
-const daysAhead = (n: number) => daysAgo(-n);
 
 function buildFixtures(): AdminState {
   const rules: ApprovalRule[] = [
@@ -117,12 +119,12 @@ function buildFixtures(): AdminState {
     { id: 'AR-04', approvalType: 'refund', threshold: null, thresholdUnit: null, approverRole: 'owner', approverUserId: 'u-ocean', active: true, group: 'business' },
     { id: 'AR-05', approvalType: 'leave', threshold: null, thresholdUnit: null, approverRole: 'owner', approverUserId: 'u-jenny', active: true, group: 'internal' },
     { id: 'AR-06', approvalType: 'payroll', threshold: null, thresholdUnit: null, approverRole: 'owner', approverUserId: 'u-jenny', active: true, group: 'internal' },
-    { id: 'AR-07', approvalType: 'pettyCash', threshold: 500, thresholdUnit: 'hkd', approverRole: 'owner', approverUserId: 'u-jenny', active: false, group: 'internal' },
+    { id: 'AR-07', approvalType: 'pettyCash', threshold: 0, thresholdUnit: 'hkd', approverRole: 'owner', approverUserId: 'u-ocean', active: true, group: 'internal' },
   ];
 
   const grants: FieldGrant[] = [
     // Kengi debugging a landed-cost sync: cost visible for 48 hours, then gone.
-    { id: 'FG-01', userId: 'u-kengi', fieldClass: 'COST', grantedBy: 'u-ocean', grantedAt: at(daysAgo(0), '09:20'), expiresAt: at(daysAhead(2), '09:20'), reason: 'Landed cost 同步數字對唔上，要睇原價 debug', revokedAt: null },
+    { id: 'FG-01', userId: 'u-kengi', fieldClass: 'COST', grantedBy: 'u-ocean', grantedAt: at(daysAgo(0), '09:20'), expiresAt: at(daysAgo(1), '09:20'), reason: 'Landed cost 同步數字對唔上，要睇原價 debug', revokedAt: null },
     { id: 'FG-02', userId: 'u-kengi', fieldClass: 'CUSTOMER_PII', grantedBy: 'u-jenny', grantedAt: at(daysAgo(12), '14:00'), expiresAt: at(daysAgo(11), '14:00'), reason: '匯入舊系統客戶資料', revokedAt: null },
   ];
 
@@ -199,7 +201,7 @@ export function useAccounts(): StaffUser[] {
 
 const accountOf = (id: string) => auth.listAccounts().find((u) => u.id === id) ?? null;
 
-const isOwner = (actor: StaffUser) => actor.role === 'owner';
+const isOwner = (actor: StaffUser) => hasRole(actor, 'owner');
 
 /**
  * 改角色（§9.3 註⁹、§9.8.4）：
@@ -208,17 +210,24 @@ const isOwner = (actor: StaffUser) => actor.role === 'owner';
  *   - 其他人 → 即時生效 + audit
  */
 export function changeRole(userId: string, to: StaffRole, actor: StaffUser): AdminResult<'applied' | 'pending'> {
-  if (!can(actor.role, 'accounts', 'edit')) return { ok: false, error: 'forbidden' };
+  return changeRoles(userId, [to], actor);
+}
+export function changeRoles(userId: string, assigned: StaffRole[], actor: StaffUser): AdminResult<'applied' | 'pending'> {
+  actor = accountOf(actor.id) ?? actor;
+  const selected = [...new Set(assigned)].filter(r => ROLES.includes(r));
+  if (!selected.length) return { ok: false, error: 'forbidden' };
+  const to = selected[0];
+  if (!can(actor, 'accounts', 'edit')) return { ok: false, error: 'forbidden' };
   const target = accountOf(userId);
   if (!target) return { ok: false, error: 'notFound' };
-  if (target.role === to) return { ok: true, value: 'applied' };
+  if (JSON.stringify(rolesOf(target)) === JSON.stringify(selected)) return { ok: true, value: 'applied' };
   if (target.id === actor.id) {
     if (!isOwner(actor)) return { ok: false, error: 'selfRole' };
     const req: RoleChangeRequest = {
       id: nextId('RR'),
       userId,
       from: target.role,
-      to,
+      to, fromRoles: rolesOf(target), toRoles: selected,
       requestedBy: actor.id,
       requestedAt: nowIso(),
       status: 'pending',
@@ -226,11 +235,11 @@ export function changeRole(userId: string, to: StaffRole, actor: StaffUser): Adm
       decidedAt: null,
     };
     commit({ ...state, roleRequests: [...state.roleRequests.filter((r) => !(r.userId === userId && r.status === 'pending')), req] });
-    appendAudit({ userId: actor.id, event: 'roleChangeRequested', targetModel: 'user', targetId: userId, before: target.role, after: to, reason: null });
+    appendAudit({ userId: actor.id, event: 'roleChangeRequested', targetModel: 'user', targetId: userId, before: rolesOf(target).join(', '), after: selected.join(', '), reason: null });
     return { ok: true, value: 'pending' };
   }
-  auth.updateAccount(userId, { role: to });
-  appendAudit({ userId: actor.id, event: 'roleChange', targetModel: 'user', targetId: userId, before: target.role, after: to, reason: null });
+  auth.updateAccount(userId, { role: to, roles: selected });
+  appendAudit({ userId: actor.id, event: 'roleChange', targetModel: 'user', targetId: userId, before: rolesOf(target).join(', '), after: selected.join(', '), reason: null });
   return { ok: true, value: 'applied' };
 }
 
@@ -243,35 +252,43 @@ export function decideRoleChange(requestId: string, decision: 'confirmed' | 'rej
     ...state,
     roleRequests: state.roleRequests.map((r) => (r.id === requestId ? { ...r, status: decision, decidedBy: actor.id, decidedAt: nowIso() } : r)),
   });
-  if (decision === 'confirmed') auth.updateAccount(req.userId, { role: req.to });
+  if (decision === 'confirmed') auth.updateAccount(req.userId, { role: req.to, roles: req.toRoles ?? [req.to] });
   appendAudit({
     userId: actor.id,
     event: decision === 'confirmed' ? 'roleChangeConfirmed' : 'roleChangeRejected',
     targetModel: 'user',
     targetId: req.userId,
-    before: req.from,
-    after: decision === 'confirmed' ? req.to : req.from,
+    before: (req.fromRoles ?? [req.from]).join(', '),
+    after: (decision === 'confirmed' ? req.toRoles ?? [req.to] : req.fromRoles ?? [req.from]).join(', '),
     reason: null,
   });
   return { ok: true, value: undefined };
 }
 
 export function setAccountStatus(userId: string, status: AccountStatus, actor: StaffUser, reason: string | null = null): AdminResult {
-  if (!can(actor.role, 'accounts', 'edit')) return { ok: false, error: 'forbidden' };
+  if (!can(actor, 'accounts', 'edit')) return { ok: false, error: 'forbidden' };
   if (userId === actor.id) return { ok: false, error: 'selfStatus' };
   const target = accountOf(userId);
   if (!target) return { ok: false, error: 'notFound' };
+  if (userId === 'u-ocean' && status === 'inactive') return { ok: false, error: 'forbidden' };
   if (target.status === status) return { ok: true, value: undefined };
+  if (status === 'inactive') {
+    const ops = getOps();
+    commitOps({ ...ops, ownerTransfers: { ...ops.ownerTransfers, [target.displayName]: { to: 'Ocean', actor: actor.id, at: nowIso() }, [userId]: { to: 'Ocean', actor: actor.id, at: nowIso() } }, activities: ops.activities.map(a => !a.doneAt && (a.owner === target.displayName || a.owner === userId) ? { ...a, owner: 'Ocean', history: [...(a.history ?? []), { at: nowIso(), action: 'reassigned', fromOwner: a.owner, toOwner: 'Ocean', actor: actor.id, reason: 'account_inactive' }] } : a) });
+    for (const rule of state.rules.filter(r => r.approverUserId === userId)) updateRule(rule.id, { approverUserId: 'u-ocean' }, actor);
+    transferSettingApprovals(userId, actor);
+  }
+  if (status === 'active') { const ops = getOps(); const transfers = { ...ops.ownerTransfers }; delete transfers[target.displayName]; delete transfers[userId]; commitOps({ ...ops, ownerTransfers: transfers }); }
   auth.updateAccount(userId, { status });
   appendAudit({ userId: actor.id, event: 'statusChange', targetModel: 'user', targetId: userId, before: target.status, after: status, reason });
   return { ok: true, value: undefined };
 }
 
 export function createAccount(
-  input: { email: string; displayName: string; role: StaffRole; locale: Locale; expiresAt: string | null },
+  input: { email: string; displayName: string; role: StaffRole; roles?: StaffRole[]; locale: Locale; expiresAt: string | null },
   actor: StaffUser
 ): AdminResult<StaffUser> {
-  if (!can(actor.role, 'accounts', 'edit')) return { ok: false, error: 'forbidden' };
+  if (!can(actor, 'accounts', 'edit')) return { ok: false, error: 'forbidden' };
   const res = auth.createAccount(input);
   if ('error' in res) return { ok: false, error: 'duplicate' };
   appendAudit({ userId: actor.id, event: 'accountCreated', targetModel: 'user', targetId: res.id, before: null, after: res.role, reason: input.expiresAt ? `expires ${input.expiresAt}` : null });
@@ -279,14 +296,14 @@ export function createAccount(
 }
 
 export function resetAccountPassword(userId: string, actor: StaffUser): AdminResult {
-  if (!can(actor.role, 'accounts', 'edit')) return { ok: false, error: 'forbidden' };
+  if (!can(actor, 'accounts', 'edit')) return { ok: false, error: 'forbidden' };
   if (!auth.resetToTemporaryPassword(userId)) return { ok: false, error: 'notFound' };
   appendAudit({ userId: actor.id, event: 'passwordReset', targetModel: 'user', targetId: userId, before: null, after: null, reason: null });
   return { ok: true, value: undefined };
 }
 
 export function updateAccountLocale(userId: string, locale: Locale, actor: StaffUser): AdminResult {
-  if (!can(actor.role, 'accounts', 'edit') && actor.id !== userId) return { ok: false, error: 'forbidden' };
+  if (!can(actor, 'accounts', 'edit') && actor.id !== userId) return { ok: false, error: 'forbidden' };
   auth.updateAccount(userId, { locale });
   return { ok: true, value: undefined };
 }
@@ -305,9 +322,10 @@ export function updateRule(
   patch: Partial<Pick<ApprovalRule, 'threshold' | 'approverRole' | 'approverUserId' | 'active'>>,
   actor: StaffUser
 ): AdminResult {
-  if (!can(actor.role, 'settings', 'edit')) return { ok: false, error: 'forbidden' };
+  if (!can(actor, 'settings', 'edit')) return { ok: false, error: 'forbidden' };
   const rule = state.rules.find((r) => r.id === id);
   if (!rule) return { ok: false, error: 'notFound' };
+  if (rule.approvalType === 'pettyCash' && ((patch.threshold !== undefined && patch.threshold !== 0) || patch.active === false || (patch.approverUserId !== undefined && patch.approverUserId !== 'u-ocean'))) return { ok: false, error: 'forbidden' };
   const next = { ...rule, ...patch };
   commit({ ...state, rules: state.rules.map((r) => (r.id === id ? next : r)) });
   const diff = (Object.keys(patch) as (keyof typeof patch)[]).filter((k) => rule[k] !== next[k]);
@@ -333,10 +351,11 @@ export function needsApproval(type: ApprovalType, amount: number | null = null, 
 export function canApprove(type: ApprovalType, actor: StaffUser, requesterId: string, s: AdminState = state): boolean {
   const rule = ruleFor(type, s);
   if (!rule || !rule.active) return false;
+  if (type === 'pettyCash') return actor.status === 'active' && actor.id === 'u-ocean';
   if (actor.id === requesterId) return false;
   // 指定審批人自己提交（例如 Jenny 自己請假）→ 跌落 role，另一位同 role 嘅人批
   if (rule.approverUserId && rule.approverUserId !== requesterId) return actor.id === rule.approverUserId;
-  return rule.approverRole !== null && actor.role === rule.approverRole;
+  return rule.approverRole !== null && hasRole(actor, rule.approverRole);
 }
 
 /** 記一次審批決定（其他 store 叫，例如請假、薪資） */
@@ -353,8 +372,8 @@ export function hasGrant(userId: string, cls: FieldClass, nowMs = Date.parse(now
 }
 
 /** 角色本身見到，或者有未過期嘅臨時授權 */
-export const canSeeWithGrants = (user: Pick<StaffUser, 'id' | 'role'>, cls: FieldClass, nowMs = Date.parse(nowIso()), s: AdminState = state) =>
-  canSee(user.role, cls) || hasGrant(user.id, cls, nowMs, s);
+export const canSeeWithGrants = (user: Pick<StaffUser, 'id' | 'role' | 'roles' | 'status'>, cls: FieldClass, nowMs = Date.parse(nowIso()), s: AdminState = state) =>
+  canSee(user, cls) || hasGrant(user.id, cls, nowMs, s);
 
 export function issueGrant(input: { userId: string; fieldClass: FieldClass; hours: number; reason: string }, actor: StaffUser): AdminResult<FieldGrant> {
   if (!isOwner(actor)) return { ok: false, error: 'notOwner' };

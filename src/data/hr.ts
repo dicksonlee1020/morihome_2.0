@@ -291,12 +291,12 @@ export const employeeOfUser = (userId: string, s: HrState = state) => s.employee
 export const employeeById = (id: string, s: HrState = state) => s.employees.find((e) => e.id === id) ?? null;
 
 /** SCOPE hr.self：有 hr.edit 或 payroll.view 就全公司，否則只係自己 */
-export const seesAllStaff = (role: StaffUser['role']) => can(role, 'hr', 'edit') || can(role, 'payroll', 'view');
+export const seesAllStaff = (role: StaffUser | StaffUser['role']) => can(role, 'hr', 'edit') || can(role, 'payroll', 'view');
 
 /* ------------------------------------------------------------- actions */
 
 export function setShift(employeeId: string, date: string, slot: ShiftSlot, place: ShiftPlace | null, actor: StaffUser): HrResult {
-  if (!can(actor.role, 'hr', 'edit')) return { ok: false, error: 'forbidden' };
+  if (!can(actor, 'hr', 'edit')) return { ok: false, error: 'forbidden' };
   const next: Shift = { employeeId, date, slot, place: slot === 'off' || slot === 'leave' ? null : place };
   const others = state.shifts.filter((s) => !(s.employeeId === employeeId && s.date === date));
   commit({ ...state, shifts: [...others, next] });
@@ -306,7 +306,7 @@ export function setShift(employeeId: string, date: string, slot: ShiftSlot, plac
 export function requestLeave(input: { employeeId: string; type: LeaveType; from: string; to: string; reason: string }, actor: StaffUser): HrResult<LeaveRequest> {
   const emp = employeeById(input.employeeId);
   if (!emp) return { ok: false, error: 'notFound' };
-  if (emp.userId !== actor.id && !can(actor.role, 'hr', 'edit')) return { ok: false, error: 'forbidden' };
+  if (emp.userId !== actor.id && !can(actor, 'hr', 'edit')) return { ok: false, error: 'forbidden' };
   const overlap = state.leaves.some((l) => l.employeeId === input.employeeId && l.status !== 'rejected' && l.status !== 'cancelled' && input.from <= l.to && input.to >= l.from);
   if (overlap) return { ok: false, error: 'overlap' };
   const req: LeaveRequest = {
@@ -362,7 +362,7 @@ export function cancelLeave(id: string, actor: StaffUser): HrResult {
   const req = state.leaves.find((l) => l.id === id);
   if (!req) return { ok: false, error: 'notFound' };
   const emp = employeeById(req.employeeId);
-  if (emp?.userId !== actor.id && !can(actor.role, 'hr', 'edit')) return { ok: false, error: 'forbidden' };
+  if (emp?.userId !== actor.id && !can(actor, 'hr', 'edit')) return { ok: false, error: 'forbidden' };
   if (req.status !== 'pending') return { ok: false, error: 'alreadyDecided' };
   commit({ ...state, leaves: state.leaves.map((l) => (l.id === id ? { ...l, status: 'cancelled' } : l)) });
   return { ok: true, value: undefined };
@@ -370,7 +370,7 @@ export function cancelLeave(id: string, actor: StaffUser): HrResult {
 
 /** 薪資月結：draft 重算（佣金係推導，每次重算）；confirm 要 ApprovalRule('payroll') 嘅審批人 */
 export function refreshPayrollDraft(month: string, actor: StaffUser): HrResult {
-  if (!can(actor.role, 'payroll', 'edit')) return { ok: false, error: 'forbidden' };
+  if (!can(actor, 'payroll', 'edit')) return { ok: false, error: 'forbidden' };
   const comm = new Map(commissionFor(month, state.employees).map((c) => [c.employeeId, c.commission]));
   const lines = state.employees.map((e) => payrollLine(e, comm.get(e.id) ?? 0));
   const existing = state.payroll.find((p) => p.month === month);
@@ -391,7 +391,7 @@ export function confirmPayroll(month: string, actor: StaffUser): HrResult {
 }
 
 export function updateEmployee(id: string, patch: Partial<Pick<Employee, 'dept' | 'employmentType' | 'annualQuota' | 'baseSalary' | 'commissionRate' | 'allowance'>>, actor: StaffUser): HrResult {
-  if (!can(actor.role, 'payroll', 'edit')) return { ok: false, error: 'forbidden' };
+  if (!can(actor, 'payroll', 'edit')) return { ok: false, error: 'forbidden' };
   if (!employeeById(id)) return { ok: false, error: 'notFound' };
   commit({ ...state, employees: state.employees.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
   return { ok: true, value: undefined };

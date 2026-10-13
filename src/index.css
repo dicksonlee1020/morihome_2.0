@@ -24,3 +24,7 @@ body,
 /* side-peek §1：peek 開住時該行高亮；顏色由 App 用 theme token 設 CSS 變數，唔散落 hex */
 .mori-row-clickable > td { cursor: pointer; }
 .mori-row-active > td { background: var(--mori-primary-subtle) !important; }
+
+/* v14 follows the existing Ant Design typography, spacing and mobile shell. */
+.v14-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+@media (max-width: 600px) { .v14-form-grid { grid-template-columns: minmax(0, 1fr); } }

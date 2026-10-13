@@ -27,3 +27,10 @@ Order `PO3579`; requirement `PR-YYYYMMDD-###`; purchase batch `PB-YYYYMMDD-##`; 
 - Version feature releases incrementally. This source-sync release remains v13 because it ports the accepted v13 behaviour.
 - Clearly document incomplete workflows and assumptions. Do not claim mock auth, local role checks or in-memory audit as production controls.
 - Do not add private transcripts, operational spreadsheets, real customer details, credentials or confidential project materials to this public repository.
+
+## v14 settings branch
+- See `docs/prototype/v14-handoff.md` for the accepted settings increment and limits.
+- Work on `codex/v14-settings`; preserve the v13 handoff branch and PR.
+- Multi-role accounts grant a union. System administration alone does not grant sensitive business access.
+- All expense/reimbursement scenarios require Ocean, including recorded self-confirmation; approval is not payment. No automatic substitute approver.
+- Preserve historical master-data snapshots and expense-policy versions. Do not enable unconfirmed bank/channel mappings or mainland warehouse identities.

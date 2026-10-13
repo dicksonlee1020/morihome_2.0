@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { Alert, App, Button, Card, DatePicker, Empty, Flex, Form, Input, Modal, Popconfirm, Select, Space, Table, Tooltip, Typography } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { KeyOutlined, PlusOutlined, StopOutlined, UserAddOutlined } from '@ant-design/icons';
-import { can, ROLES } from '../../config/permissions';
+import { can, ROLES, rolesOf, hasRole } from '../../config/permissions';
 import type { StaffRole } from '../../config/permissions';
-import { changeRole, createAccount, decideRoleChange, pendingRoleRequests, resetAccountPassword, setAccountStatus, useAccounts, useAdmin } from '../../data/admin';
+import { changeRoles, createAccount, decideRoleChange, pendingRoleRequests, resetAccountPassword, setAccountStatus, useAccounts, useAdmin } from '../../data/admin';
 import type { AdminError } from '../../data/admin';
 import { staffById } from '../../data/staff';
 import { useAuth } from '../../auth';
@@ -55,7 +55,7 @@ export function AccountsTab() {
   const accounts = useAccounts();
   const admin = useAdmin();
   const me = user as StaffUser;
-  const editable = can(me.role, 'accounts', 'edit');
+  const editable = can(me, 'accounts', 'edit');
   const nowMs = Date.now();
 
   const [roles, setRoles] = useState<StaffRole[]>([]);
@@ -66,7 +66,7 @@ export function AccountsTab() {
   const rows = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     return accounts
-      .filter((u) => (roles.length === 0 || roles.includes(u.role)) && (states.length === 0 || states.includes(accountState(u, nowMs))))
+      .filter((u) => (roles.length === 0 || rolesOf(u).some(r => roles.includes(r))) && (states.length === 0 || states.includes(accountState(u, nowMs))))
       .filter((u) => !kw || u.displayName.toLowerCase().includes(kw) || u.email.toLowerCase().includes(kw))
       .sort((a, b) => cmpDate(b.lastLoginAt, a.lastLoginAt));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,28 +81,30 @@ export function AccountsTab() {
     else message.error(t(ERROR_KEY[res.error]));
   };
 
-  const onRole = (u: StaffUser, to: StaffRole) => {
-    const res = changeRole(u.id, to, me);
+  const onRole = (u: StaffUser, to: StaffRole[]) => {
+    const res = changeRoles(u.id, to, me);
     if (res.ok) message.success(t(res.value === 'pending' ? 'accounts.msg.rolePending' : 'accounts.msg.roleApplied'));
     else message.error(t(ERROR_KEY[res.error]));
   };
 
   const roleLabel = (r: StaffRole) => t(`role.${r}` as MessageKey);
   const isSelf = (u: StaffUser) => u.id === me.id;
-  const roleLocked = (u: StaffUser) => !editable || (isSelf(u) && me.role === 'sysadmin') || u.status === 'inactive';
+  const roleLocked = (u: StaffUser) => !editable || (isSelf(u) && !hasRole(me, 'owner')) || u.status === 'inactive';
   const hasPending = (u: StaffUser) => pending.some((r) => r.userId === u.id);
 
   const roleCell = (u: StaffUser) =>
     roleLocked(u) ? (
-      <Text>{roleLabel(u.role)}</Text>
+      <Text>{rolesOf(u).map(roleLabel).join('、')}</Text>
     ) : (
       <Flex align="center" gap={6}>
         <Select
           size="small"
-          value={u.role}
+          mode="multiple"
+          aria-label={`角色 ${u.displayName}`}
+          value={rolesOf(u)}
           onChange={(v) => onRole(u, v)}
           options={ROLES.map((r) => ({ value: r, label: roleLabel(r) }))}
-          style={{ width: 120 }}
+          style={{ width: 240, maxWidth: '100%' }}
           disabled={hasPending(u)}
         />
         {hasPending(u) && <Pill tone="warning" dot>{t('accounts.pending.self')}</Pill>}
@@ -190,9 +192,9 @@ export function AccountsTab() {
             type="warning"
             showIcon
             title={t('accounts.pending.title')}
-            description={t('accounts.pending.line', { requester, from: roleLabel(r.from), to: roleLabel(r.to) })}
+            description={t('accounts.pending.line', { requester, from: (r.fromRoles ?? [r.from]).map(roleLabel).join('、'), to: (r.toRoles ?? [r.to]).map(roleLabel).join('、') })}
             action={
-              me.role === 'owner' && !mine ? (
+              hasRole(me, 'owner') && !mine ? (
                 <Space>
                   <Button size="small" type="primary" onClick={() => report(decideRoleChange(r.id, 'confirmed', me), 'accounts.msg.roleApplied')}>{t('common.confirm')}</Button>
                   <Button size="small" onClick={() => report(decideRoleChange(r.id, 'rejected', me), 'accounts.msg.statusChanged')}>{t('hr.leave.reject')}</Button>
@@ -254,7 +256,7 @@ export function AccountsTab() {
 function CreateAccountModal({ open, onClose, me }: { open: boolean; onClose: () => void; me: StaffUser }) {
   const t = useT();
   const { message } = App.useApp();
-  const [form] = Form.useForm<{ displayName: string; email: string; role: StaffRole; locale: Locale; expiresAt?: { format: (f: string) => string } | null }>();
+  const [form] = Form.useForm<{ displayName: string; email: string; roles: StaffRole[]; locale: Locale; expiresAt?: { format: (f: string) => string } | null }>();
 
   return (
     <Modal
@@ -266,7 +268,7 @@ function CreateAccountModal({ open, onClose, me }: { open: boolean; onClose: () 
       destroyOnHidden
       onOk={() =>
         form.validateFields().then((v) => {
-          const res = createAccount({ email: v.email, displayName: v.displayName, role: v.role, locale: v.locale, expiresAt: v.expiresAt ? v.expiresAt.format('YYYY-MM-DD') : null }, me);
+          const res = createAccount({ email: v.email, displayName: v.displayName, role: v.roles[0], roles: v.roles, locale: v.locale, expiresAt: v.expiresAt ? v.expiresAt.format('YYYY-MM-DD') : null }, me);
           if (res.ok) {
             message.success(t('accounts.msg.created'));
             form.resetFields();
@@ -275,7 +277,7 @@ function CreateAccountModal({ open, onClose, me }: { open: boolean; onClose: () 
         })
       }
     >
-      <Form form={form} layout="vertical" style={{ marginTop: 12 }} initialValues={{ role: 'sales', locale: 'zh-Hant' }}>
+      <Form form={form} layout="vertical" style={{ marginTop: 12 }} initialValues={{ roles: ['sales'], locale: 'zh-Hant' }}>
         <Form.Item name="displayName" label={t('accounts.form.name')} rules={[{ required: true, message: t('auth.error.emailRequired') }]}>
           <Input prefix={<UserAddOutlined />} />
         </Form.Item>
@@ -283,8 +285,8 @@ function CreateAccountModal({ open, onClose, me }: { open: boolean; onClose: () 
           <Input />
         </Form.Item>
         <Flex gap={12}>
-          <Form.Item name="role" label={t('accounts.form.role')} style={{ flex: 1 }}>
-            <Select options={ROLES.map((r) => ({ value: r, label: t(`role.${r}` as MessageKey) }))} />
+          <Form.Item name="roles" label={t('accounts.form.role')} rules={[{ required: true }]} style={{ flex: 1 }}>
+            <Select mode="multiple" options={ROLES.map((r) => ({ value: r, label: t(`role.${r}` as MessageKey) }))} />
           </Form.Item>
           <Form.Item name="locale" label={t('accounts.form.locale')} style={{ flex: 1 }}>
             <Select options={LOCALES} />

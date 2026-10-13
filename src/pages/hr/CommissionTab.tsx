@@ -35,7 +35,7 @@ export function CommissionTab() {
   const ops = useOps();
   const admin = useAdmin();
   const me = user as StaffUser;
-  const all = can(me.role, 'payroll', 'view') || canSeeWithGrants(me, 'HR', Date.parse(nowIso()), admin);
+  const all = can(me, 'payroll', 'view') || canSeeWithGrants(me, 'HR', Date.parse(nowIso()), admin);
   const [employees, setEmployees] = useState<string[]>([]);
 
   const rows = useMemo(() => {

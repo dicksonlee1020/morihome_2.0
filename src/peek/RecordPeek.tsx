@@ -97,7 +97,7 @@ export function RecordPeek() {
       window.removeEventListener('mouseup', onUp);
     };
   }, [setWidth]);
-  const role = user?.role ?? 'sales';
+  const role = user ?? 'sales';
   const config = target
     ? PEEK_CONFIGS[target.model as keyof typeof PEEK_CONFIGS]
     : null;

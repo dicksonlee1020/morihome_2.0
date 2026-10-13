@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import dayjs from 'dayjs';
 import { AuthContext, SESSION_STORAGE_KEY } from './context';
@@ -53,7 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Storage is synchronous, so the stored session is read once on first
   // render; 'loading' is reserved for when a server-side token check lands.
   const [session, setSession] = useState<Session | null>(readStoredSession);
-  const status: AuthStatus = session ? 'authenticated' : 'anonymous';
+  const accounts = useSyncExternalStore(api.subscribeAccounts, api.listAccounts, api.listAccounts);
+  const liveUser = session ? accounts.find(a => a.id === session.user.id) : null;
+  const effectiveSession = session && liveUser?.status === 'active' && (!liveUser.expiresAt || Date.parse(liveUser.expiresAt) > Date.now()) ? { ...session, user: liveUser } : null;
+  const status: AuthStatus = effectiveSession ? 'authenticated' : 'anonymous';
 
   const adopt = useCallback((next: Session | null) => {
     writeStoredSession(next);
@@ -101,14 +104,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       status,
-      session,
-      user: session?.user ?? null,
+      session: effectiveSession,
+      user: effectiveSession?.user ?? null,
       signIn,
       signInWithGoogle,
       markPasswordChanged,
       signOut,
     }),
-    [status, session, signIn, signInWithGoogle, markPasswordChanged, signOut]
+    [status, session, accounts, signIn, signInWithGoogle, markPasswordChanged, signOut]
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;
